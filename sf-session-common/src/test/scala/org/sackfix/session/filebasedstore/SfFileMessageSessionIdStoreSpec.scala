@@ -14,7 +14,7 @@ class SfFileMessageSessionIdStoreSpec  extends FlatSpec {
 
   private def createFileStoreFixture(sillyTestId:String) : SfFileMessageSessionIdStore= {
     val sessId = new SfSessionId("beginString","senderCompId","targetCompId")
-    new SfFileMessageSessionIdStore("./test/resources/tmp/acceptor"+sillyTestId, sessId)
+    new SfFileMessageSessionIdStore("./test/resources/tmp/acceptor"+sillyTestId, 10000, sessId)
   }
 
   it should "Store and reread sequence numbers" in {

@@ -11,8 +11,10 @@ import scala.util.{Failure, Success, Try}
 
 /**
   * Created by Jonathan during 2017.
+  *
+  * @param maxReplayCount If -1 then no limit - but you may fail with out of memory.
   */
-class SfFileMessageSessionIdStore(pathToFileStore:String, val sessionId:SfSessionId) {
+class SfFileMessageSessionIdStore(pathToFileStore:String, val maxReplayCount:Int , val sessionId:SfSessionId) {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   val dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ssZ")
@@ -29,7 +31,7 @@ class SfFileMessageSessionIdStore(pathToFileStore:String, val sessionId:SfSessio
   private var theirSeqFile:Option[RandomAccessFile] = None
 
   // Sequence number, to seek,size tuple
-  private val msgSeekLookup = scala.collection.mutable.HashMap.empty[Int,(Long, Int)]
+  private val msgSeekLookup = scala.collection.mutable.LinkedHashMap.empty[Int,(Long, Int)]
   private var msgIndexFile:Option[RandomAccessFile] = None
   private var msgFile:Option[RandomAccessFile] = None
 
@@ -101,8 +103,11 @@ class SfFileMessageSessionIdStore(pathToFileStore:String, val sessionId:SfSessio
       logger.info(s"[${sessionId.id}] Reading message index file name [$msgIndexFileName], so can replay messages as needed")
       MessageIndexFileCodec.readData(msgIndexFileName) match {
         case Success( indexValues : List[(Int, Long, Int)]) =>
-          indexValues.foreach( (seqOffSize:Tuple3[Int,Long,Int]) =>
-            msgSeekLookup(seqOffSize._1) = (seqOffSize._2, seqOffSize._3))
+          indexValues.foreach( (seqOffSize:Tuple3[Int,Long,Int]) => {
+            msgSeekLookup(seqOffSize._1) = (seqOffSize._2, seqOffSize._3)
+            if (maxReplayCount >= 0 && msgSeekLookup.size > maxReplayCount)
+              msgSeekLookup.remove(msgSeekLookup.head._1)
+          })
           logger.info(s"[${sessionId.id}] Reading message index file name [$msgIndexFileName], completed read of ${msgSeekLookup.size} records")
         case Failure(e) =>
           logger.error(s"[${sessionId.id}] Failed to read message index file name [$msgIndexFileName], replay of messages will not work")
@@ -183,6 +188,9 @@ class SfFileMessageSessionIdStore(pathToFileStore:String, val sessionId:SfSessio
           raf.writeUTF(fixStr)
           val len = (raf.length() - pos).toInt
           msgSeekLookup(seqNum) = (pos, len)
+          if (maxReplayCount >= 0 && msgSeekLookup.size > maxReplayCount)
+            msgSeekLookup.remove(msgSeekLookup.head._1)
+
           MessageIndexFileCodec.writeIndex(msgIndexFile, seqNum, pos, len) match {
             case Success(_) =>
             case Failure(t:IOException) =>

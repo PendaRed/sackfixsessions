@@ -11,7 +11,7 @@ class SfFileMessageStoreSpec extends FlatSpec {
   behavior of "SfFileMessageStore"
 
   private def createFileStoreFixture : SfFileMessageStore= {
-    new SfFileMessageStore("./test/resources/tmp/acceptor")
+    new SfFileMessageStore("./test/resources/tmp/acceptor", 10000)
   }
 
   it should "prefixCode" in {

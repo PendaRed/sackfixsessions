@@ -15,8 +15,11 @@ import scala.collection.mutable
   * It is NOT thread safe, so only use it from one Actor
   *
   * @param pathToFileStore The path to the directory used as the file based store
+  * @param maxReplayCount Since all indexing is stored in memory your JVM will crash with
+  *                       out of memory unless you size it correctly - eg about 2 million messages
+  *                       caused it to fail with default JVM sizing.  -1 means no limit
   */
-class SfFileMessageStore(pathToFileStore:String) extends SfMessageStore with SessionOpenTodayStore {
+class SfFileMessageStore(pathToFileStore:String, val maxReplayCount:Int) extends SfMessageStore with SessionOpenTodayStore {
   private val logger = LoggerFactory.getLogger(this.getClass)
 
   private var session: Option[SfSession] = None
@@ -62,7 +65,7 @@ class SfFileMessageStore(pathToFileStore:String) extends SfMessageStore with Ses
   override def initialiseSession(sessionId:SfSessionId, readInitialSequenceNumbers:Boolean):SfSequencePair ={
     sessionLookupMap.get(sessionId) match {
       case None =>
-        val store = new SfFileMessageSessionIdStore(pathToFileStore, sessionId)
+        val store = new SfFileMessageSessionIdStore(pathToFileStore, maxReplayCount, sessionId)
         sessionLookupMap(sessionId) = store
         store.initialiseSession(readInitialSequenceNumbers)
       case Some(store) =>

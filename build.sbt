@@ -4,7 +4,7 @@ import sbt.Keys._
 // logging docs: http://doc.akka.io/docs/akka/2.4.16/scala/logging.html
 lazy val commonSettings = Seq(
 	organization := "org.sackfix",
-	version := "0.1.0",
+	version := "0.1.1",
 	scalaVersion := "2.11.7",
   libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3" % "runtime", // without %runtime did not work in intellij
 	libraryDependencies += "org.sackfix" %% "sackfix-common" % "0.1.0" exclude("org.apache.logging.log4j","log4j-api") exclude("org.apache.logging.log4j","log4j-core"),

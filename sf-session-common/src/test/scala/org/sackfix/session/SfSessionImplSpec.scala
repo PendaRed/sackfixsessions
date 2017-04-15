@@ -17,7 +17,7 @@ class SfSessionImplSpec extends FlatSpec with BeforeAndAfterAll {
 
   val sessId = new SfSessionId("Fix4.2", "TargFGW", "SendFGW")
 
-  val messageStore = new SfFileMessageStore("./test/resources/tmp/acceptor")
+  val messageStore = new SfFileMessageStore("./test/resources/tmp/acceptor", 10000)
   val msgStoreDetails = Some(messageStore)
   override protected def beforeAll() = {
     val sess = SfSessionImpl(SfAcceptor, Some(messageStore), new SfSessionActorOutActionsStub, sessId, 30)
