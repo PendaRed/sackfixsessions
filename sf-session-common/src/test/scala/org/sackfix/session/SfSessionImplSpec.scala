@@ -2,17 +2,17 @@ package org.sackfix.session
 
 import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter, DateTimeParseException}
-
 import org.sackfix.common.message.SfMessageHeader
 import org.sackfix.field._
 import org.sackfix.session.filebasedstore.SfFileMessageStore
 import org.sackfix.session.fixstate.{ActiveNormalSession, MessageFixtures}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.{BeforeAndAfterAll}
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfSessionImplSpec extends FlatSpec with BeforeAndAfterAll {
+class SfSessionImplSpec extends AnyFlatSpec with BeforeAndAfterAll {
   behavior of "SfSessionImpl"
 
   val sessId = new SfSessionId("Fix4.2", "TargFGW", "SendFGW")

@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44._
 import org.sackfix.session.{SfAction, _}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class ActiveNormalSessionSpec extends FlatSpec {
+class ActiveNormalSessionSpec extends AnyFlatSpec {
 
   behavior of "ActiveNormalSession"
   val session = new SfSessionStub

@@ -5,7 +5,7 @@ import org.sackfix.common.message._
 import org.sackfix.common.validated.fields.SfFixMessageDecoder
 import org.sackfix.field._
 import org.sackfix.fix44.SfMessageFactory
-import org.sackfix.latency.LatencyActor.{RecordLatencyMsgIn, RecordMsgLatencyMsgIn}
+import org.sackfix.latency.LatencyActor.RecordMsgLatencyMsgIn
 import org.sackfix.session.SfSessionId
 
 /**
@@ -13,14 +13,14 @@ import org.sackfix.session.SfSessionId
   */
 object SfDecodeTuplesToMsg {
 
-  def decodeFromStr(fixStr: String, rejectMessageCallback: (DecodingFailedData) => Unit,
+  def decodeFromStr(fixStr: String, rejectMessageCallback: DecodingFailedData => Unit,
                     latencyRecorder:Option[ActorRef]=None): Option[SfMessage] = {
     var seqNo = 0
     try {
       val fixTuples: Array[(Int, String)] = fixStr.split(SfDecodeBytesToTuples.SOH_CHAR).map((kv: String) => {
         val s = kv.split(SfDecodeBytesToTuples.EQUALS_CHAR)
         if (s.length != 2) {
-          throw new SfBadFixStreamException(s"Badly encoded message - tag=value was [$kv]")
+          throw SfBadFixStreamException(s"Badly encoded message - tag=value was [$kv]")
         }
         // silly and messy, but for erros the reject is supposed to send the seq no
         val tagId = s(0).toInt
@@ -46,7 +46,7 @@ object SfDecodeTuplesToMsg {
     * @return the decoded message which you should now process, or None (after calling the failure callback)
     */
   def decode(fixTuples: Array[Tuple2[Int, String]],rejectDetails:Option[FixStrDecodeRejectDetails],
-             rejectMessageCallback: (DecodingFailedData) => Unit,
+             rejectMessageCallback: DecodingFailedData => Unit,
              latencyRecorder:Option[ActorRef]=None): Option[SfMessage] = {
     convertAMessage(fixTuples, rejectDetails, latencyRecorder) match {
       case (msg: Some[SfMessage], None) =>

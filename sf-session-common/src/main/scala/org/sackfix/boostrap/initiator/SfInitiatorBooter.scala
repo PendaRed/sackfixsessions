@@ -1,15 +1,15 @@
 package org.sackfix.boostrap.initiator
 
-import java.time.LocalDateTime
-
 import akka.actor.{ActorContext, ActorRef}
 import org.sackfix.boostrap.BusinessCommsHandler
 import org.sackfix.boostrap.initiator.SfInitiatorSocketActor.{InitiatorCloseNowMsgIn, InitiatorStartTimeMsgIn}
 import org.sackfix.latency.LatencyActor
 import org.sackfix.session._
 import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, StartBeatingMsgIn, StopBeatingMsgIn}
-import org.sackfix.session.heartbeat.{SfHeartbeater, SfHeartbeaterActor, SfSessionSchedulListener, SfSessionScheduler}
+import org.sackfix.session.heartbeat.{SfHeartbeaterActor, SfSessionSchedulListener, SfSessionScheduler}
 import org.slf4j.LoggerFactory
+
+import java.time.LocalDateTime
 
 /**
   * Created by Jonathan during 2017.
@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory
   *                            It in turn can reply to the sfSessionActor by sending it a
   *                           org.sackfix.session.FixMsgOut(msgBody: SfFixMessageBody)
   */
-case class SfInitiatorBooter(val guardianActor: ActorRef, context: ActorContext,
+case class SfInitiatorBooter(guardianActor: ActorRef, context: ActorContext,
                              messageStoreDetails: Option[SfMessageStore],
                              sessionOpenTodayStore: SessionOpenTodayStore,
                              businessComms: BusinessCommsHandler) {
@@ -50,10 +50,10 @@ case class SfInitiatorBooter(val guardianActor: ActorRef, context: ActorContext,
        |""".stripMargin)
 
   // Load the config into an extension object, so can get at values as fields.
-  val settings = SfInitiatorSettings(context.system)
+  val settings: SfInitiatorSettingsImp = SfInitiatorSettings(context.system)
   logger.info("Config:" + settings.dumpConfig())
-  val heartbeater = context.actorOf(SfHeartbeaterActor.props(1000))
-  val latencyRecorderActorRef = Some(context.actorOf(LatencyActor.props(1000), name="SfLatencyRecorder"))
+  val heartbeater: ActorRef = context.actorOf(SfHeartbeaterActor.props(1000), name="heartbeater")
+  val latencyRecorderActorRef: Option[ActorRef] = Some(context.actorOf(LatencyActor.props(1000), name="SfLatencyRecorder"))
 
   // Maybe they have configured many client connections, I have no idea why they would.....
   val sockets: List[ActorRef] = settings.sessionConfigs.map { clientConfig: SfInitiatorTargetCompSettings =>
@@ -84,10 +84,10 @@ case class SfInitiatorBooter(val guardianActor: ActorRef, context: ActorContext,
       latencyRecorderActorRef), name=s"${sessionId.actorNameId}:SfInitiatorSocketActor")
 
     // Each session needs a schedule, which fires a start session into it.
-    val scheduler = new SfSessionScheduler(clientConfig.startTime, clientConfig.endTime, new SfSessionSchedulListener {
-      override def wakeUp: Unit = initiatorSocket ! InitiatorStartTimeMsgIn("Scheduler sends wake up")
+    val scheduler = SfSessionScheduler(clientConfig.startTime, clientConfig.endTime, new SfSessionSchedulListener {
+      override def wakeUp(): Unit = initiatorSocket ! InitiatorStartTimeMsgIn("Scheduler sends wake up")
 
-      override def sleepNow: Unit = initiatorSocket ! InitiatorCloseNowMsgIn("Scheduler configured end time says close down")
+      override def sleepNow(): Unit = initiatorSocket ! InitiatorCloseNowMsgIn("Scheduler configured end time says close down")
     })
     heartbeater ! AddListenerMsgIn(scheduler)
 
@@ -96,7 +96,7 @@ case class SfInitiatorBooter(val guardianActor: ActorRef, context: ActorContext,
 
   heartbeater ! StartBeatingMsgIn
 
-  def closeDown = {
+  def closeDown(): Unit = {
     heartbeater ! StopBeatingMsgIn
     // @TODO tell all client sessions to terminate using the logout sequence, give them a while
     // and when they are all down close, or after a time close.

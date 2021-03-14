@@ -3,14 +3,14 @@ package org.sackfix.codec
 import akka.util.ByteString
 import org.sackfix.common.message.SfMessageHeader
 import org.sackfix.field.{SessionRejectReasonField, TextField}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfDecodeBytesToTuplesSpec extends FlatSpec {
+class SfDecodeBytesToTuplesSpec extends AnyFlatSpec {
   val SOH = 1.toChar
 
   behavior of "SfDecodeBytesToTuples"

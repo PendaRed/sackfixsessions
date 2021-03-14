@@ -4,7 +4,8 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import org.sackfix.latency.LatencyActor.{LogCorrelationMsgIn, RecordLatencyMsgIn, ServeLatencyReportMsgIn, ServeLatencyReportReply}
 import org.sackfix.session.heartbeat.SfHeartbeater
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, WordSpecLike}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
@@ -12,7 +13,7 @@ import scala.concurrent.duration._
   * Created by Jonathan during 2017.
   */
 class LatencyActorSpec extends TestKit(ActorSystem("LatencyTests")) with ImplicitSender
-      with WordSpecLike with BeforeAndAfterAll {
+      with AnyWordSpecLike with BeforeAndAfterAll {
 
   override def afterAll: Unit = {
     TestKit.shutdownActorSystem(system)
@@ -30,7 +31,7 @@ class LatencyActorSpec extends TestKit(ActorSystem("LatencyTests")) with Implici
 
       recorder ! ServeLatencyReportMsgIn
 
-      val rep: AnyRef = receiveOne(1000 millis)
+      val rep: AnyRef = receiveOne(1000.millis)
       assert(rep != null)
       val report = rep.asInstanceOf[ServeLatencyReportReply]
       println(report.report)
@@ -48,7 +49,7 @@ class LatencyActorSpec extends TestKit(ActorSystem("LatencyTests")) with Implici
 
       recorder ! ServeLatencyReportMsgIn
 
-      val rep: AnyRef = receiveOne(1000 millis)
+      val rep: AnyRef = receiveOne(1000.millis)
       assert(rep != null)
       val report = rep.asInstanceOf[ServeLatencyReportReply]
       println(report.report)
@@ -66,7 +67,7 @@ class LatencyActorSpec extends TestKit(ActorSystem("LatencyTests")) with Implici
 
       recorder ! ServeLatencyReportMsgIn
 
-      val rep: AnyRef = receiveOne(1000 millis)
+      val rep: AnyRef = receiveOne(1000.millis)
       assert(rep != null)
       val report = rep.asInstanceOf[ServeLatencyReportReply]
       println(report.report)

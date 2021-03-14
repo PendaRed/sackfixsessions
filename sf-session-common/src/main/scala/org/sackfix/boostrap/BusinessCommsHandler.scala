@@ -1,7 +1,5 @@
 package org.sackfix.boostrap
 
-import java.time.LocalDateTime
-
 import akka.actor.ActorRef
 import org.sackfix.common.message.SfMessage
 import org.sackfix.common.validated.fields.SfFixMessageBody
@@ -18,8 +16,6 @@ import org.sackfix.session.SfSessionId
   * to the actor.  You can look after your own ActorRef and lifecycle.
   */
 trait SfBusinessFixInfo {
-  val tstamp = LocalDateTime.now()
-
   def sessionId: SfSessionId
 }
 

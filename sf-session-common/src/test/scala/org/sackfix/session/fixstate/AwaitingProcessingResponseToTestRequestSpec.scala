@@ -4,12 +4,12 @@ import org.sackfix.common.message.SfMessage
 import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.fix44.HeartbeatMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class AwaitingProcessingResponseToTestRequestSpec extends FlatSpec {
+class AwaitingProcessingResponseToTestRequestSpec extends AnyFlatSpec {
   behavior of "AwaitingProcessingResponseToTestRequest"
   val session = new SfSessionStub
 

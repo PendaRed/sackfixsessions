@@ -1,11 +1,11 @@
 package org.sackfix.session.heartbeat
 
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfHeartbeaterSpec extends FlatSpec {
+class SfHeartbeaterSpec extends AnyFlatSpec {
   behavior of "SfHeartbeater"
 
   it should "Fire listeners as expected" in {

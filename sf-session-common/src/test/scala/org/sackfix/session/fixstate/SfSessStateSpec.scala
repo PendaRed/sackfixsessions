@@ -1,14 +1,14 @@
 package org.sackfix.session.fixstate
 
-import java.time.LocalDateTime
+import org.sackfix.common.message.SfFixUtcTime
 
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class SfSessStateSpec extends FlatSpec {
+class SfSessStateSpec extends AnyFlatSpec {
   behavior of "SfSessState"
 
   case object TestSessState extends SfSessState(1,"testState",false, true, true) {}
@@ -32,7 +32,7 @@ class SfSessStateSpec extends FlatSpec {
   }
 
   it should "detect a 2 min gap" in {
-    val now = LocalDateTime.now()
+    val now = SfFixUtcTime.now
 
     val s =  TestSessState
     assert(false==s.isMoreThan2Mins(now, now.minusMinutes(1)))

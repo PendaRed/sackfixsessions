@@ -1,12 +1,12 @@
 package org.sackfix.session.fixstate
 
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during December 2016.
   */
-class DisconnectedNoConnectionTodaySpec extends FlatSpec {
+class DisconnectedNoConnectionTodaySpec extends AnyFlatSpec {
   behavior of "DisconnectedNoConnectionToday"
   val session = new SfSessionStub
 

@@ -1,11 +1,11 @@
 package org.sackfix.session.heartbeat
 
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan on 28/12/2016.
   */
-class SfSessionTimeHandlerSpec extends FlatSpec {
+class SfSessionTimeHandlerSpec extends AnyFlatSpec {
   behavior of "SfSessionTimeHandler"
 
   it should "Determine the number of heartbeats properly" in {

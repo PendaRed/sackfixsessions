@@ -46,13 +46,13 @@ class SfAccepterSocketActor(val myHostName: Option[InetAddress], val portNum: In
   import context.system
   // Implicitly used by IO(Tcp)
 
-  if (!myHostName.isDefined) log.info(s"Configuration did not set ${SfAcceptorSettings.SOCKET_ACCEPT_ADDRESS}, so defaulting to local host")
-  val host = if (myHostName.isDefined) myHostName.get else InetAddress.getLocalHost()
+  if (myHostName.isEmpty) log.info(s"Configuration did not set ${SfAcceptorSettings.SOCKET_ACCEPT_ADDRESS}, so defaulting to local host")
+  val host: InetAddress = if (myHostName.isDefined) myHostName.get else InetAddress.getLocalHost
   var connection: Option[ActorRef] = None
 
-  def receive = {
-    case AcceptorStartTimeMsgIn => startSession
-    case AcceptorEndTimeMsgIn => endSession
+  def receive: Receive = {
+    case AcceptorStartTimeMsgIn => startSession()
+    case AcceptorEndTimeMsgIn => endSession()
     case b@Bound(localAddress) =>
       connection = Some(sender())
       log.info(s"Successful bind to socket. host:[$host] port:[$portNum]")
@@ -78,7 +78,7 @@ class SfAccepterSocketActor(val myHostName: Option[InetAddress], val portNum: In
 
   }
 
-  def startSession = {
+  def startSession(): Unit = {
     connection match {
       case None =>
         log.info(s"Opening socket to listen for clients. host:[$host] port:[$portNum]")
@@ -91,7 +91,7 @@ class SfAccepterSocketActor(val myHostName: Option[InetAddress], val portNum: In
     }
   }
 
-  def endSession = {
+  def endSession(): Unit = {
     connection match {
       case Some(c) =>
         log.info(s"Closing socket host:[$host] port:[$portNum]")

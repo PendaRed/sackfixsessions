@@ -12,14 +12,14 @@ import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field.{SessionRejectReasonField, TextField}
 import org.sackfix.session.SfSessionActor.{ConnectionEstablishedMsgIn, SendRejectMessageOut}
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfSocketHandlerActorTest extends FlatSpec {
+class SfSocketHandlerActorTest extends AnyFlatSpec {
   val SOH=1.toChar
 
   // Required for the TestActorRef

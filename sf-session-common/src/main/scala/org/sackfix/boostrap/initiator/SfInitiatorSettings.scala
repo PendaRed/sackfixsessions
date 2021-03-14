@@ -1,13 +1,12 @@
 package org.sackfix.boostrap.initiator
 
-import java.net.InetSocketAddress
-import java.time.LocalTime
-import java.time.format.DateTimeParseException
-
 import akka.actor._
+import com.typesafe.config.Config
 import org.sackfix.boostrap.ConfigUtil
 import org.sackfix.common.config.SfConfigUtils
-import com.typesafe.config.Config
+
+import java.net.{InetAddress, InetSocketAddress}
+import java.time.LocalTime
 
 /**
   * Cribbed from
@@ -16,16 +15,16 @@ import com.typesafe.config.Config
   */
 class SfInitiatorSettingsImp(conf: Config) extends Extension {
 
-  import scala.collection.JavaConversions._
+  import scala.jdk.CollectionConverters._
 
-  val config = conf.getConfig("session")
+  val config: Config = conf.getConfig("session")
 
-  val beginString = config.getString("BeginString")
+  val beginString: String = config.getString("BeginString")
   val senderCompID: String = config.getString("SenderCompID")
-  val pathToFileStore = config.getString("PathToFileStore")
+  val pathToFileStore: String = config.getString("PathToFileStore")
 
   val sessionConfigs: List[SfInitiatorTargetCompSettings] =
-    config.getConfigList("sessions").map(new SfInitiatorTargetCompSettings(_)).toList
+    config.getConfigList("sessions").asScala.map(new SfInitiatorTargetCompSettings(_)).toList
 
 
   def dumpConfig() :String= {
@@ -34,12 +33,12 @@ class SfInitiatorSettingsImp(conf: Config) extends Extension {
       s"${prefix}SenderCompID=[$senderCompID]"+
       s"${prefix}PathToFileStore=[$pathToFileStore]"+
       s"${prefix}sessions={" +
-      {sessionConfigs.map{_.dumpConfig("\n  ")}.mkString(s"${prefix}}${prefix}{")}+s"${prefix}}"
+      {sessionConfigs.map{_.dumpConfig("\n  ")}.mkString(s"$prefix}$prefix{")}+s"$prefix}"
   }
 }
 
 class SfInitiatorTargetCompSettings(config: Config) {
-  import scala.collection.JavaConversions._
+  import scala.jdk.CollectionConverters._
 
   val targetCompID: String = config.getString("TargetCompID")
   val reconnectIntervalSecs: Int = config.getInt("ReconnectIntervalSecs")
@@ -51,7 +50,7 @@ class SfInitiatorTargetCompSettings(config: Config) {
   val resetTheirNextSeqNumTo: Int = config.getInt("ResetTheirNextSeqNumTo")
 
   // uses javaconversions
-  val socketConfigs = config.getConfigList("sockets").map(new SfInitiatorSocketSettings(_)).toList
+  val socketConfigs: List[SfInitiatorSocketSettings] = config.getConfigList("sockets").asScala.map(new SfInitiatorSocketSettings(_)).toList
 
   def dumpConfig(prefix:String):String = {
     s"${prefix}TargetCompID=[$targetCompID]"+
@@ -62,7 +61,7 @@ class SfInitiatorTargetCompSettings(config: Config) {
       s"${prefix}ResetMyNextSeqNumTo=[$resetMyNextSeqNumTo]"+
       s"${prefix}ResetTheirNextSeqNumTo=[$resetTheirNextSeqNumTo]"+
       s"${prefix}sockets={" +
-      {socketConfigs.map{_.dumpConfig(prefix+"  ")}.mkString(s"${prefix}}${prefix}{")}+s"${prefix}}"
+      {socketConfigs.map{_.dumpConfig(prefix+"  ")}.mkString(s"$prefix}$prefix{")}+s"$prefix}"
   }
 
 }
@@ -72,8 +71,8 @@ object SfInitiatorSocketSettings {
     new InetSocketAddress(s.socketAddress, s.socketPort)
 }
 case class SfInitiatorSocketSettings(config:Config) {
-  val socketAddress = SfConfigUtils.toInetAddress(config, "SocketConnectHost")
-  val socketPort = config.getInt("SocketConnectPort")
+  val socketAddress: InetAddress = SfConfigUtils.toInetAddress(config, "SocketConnectHost")
+  val socketPort: Int = config.getInt("SocketConnectPort")
 
   def dumpConfig(prefix:String):String = {
     s"${prefix}SocketConnectHost=[$socketAddress]" +
@@ -84,7 +83,7 @@ case class SfInitiatorSocketSettings(config:Config) {
 
 object SfInitiatorSettings extends ExtensionId[SfInitiatorSettingsImp] with ExtensionIdProvider {
 
-  override def lookup = SfInitiatorSettings
+  override def lookup: SfInitiatorSettings.type = SfInitiatorSettings
 
   override def createExtension(system: ExtendedActorSystem) =
     new SfInitiatorSettingsImp(system.settings.config)

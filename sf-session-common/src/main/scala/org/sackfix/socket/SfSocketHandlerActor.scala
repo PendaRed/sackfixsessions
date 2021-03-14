@@ -7,7 +7,7 @@ import akka.io.Tcp
 import akka.io.Tcp.Event
 import org.sackfix.boostrap.BusinessCommsHandler
 import org.sackfix.codec._
-import org.sackfix.common.message.{SfMessage, SfMessageHeader}
+import org.sackfix.common.message.{SfFixUtcTime, SfMessage, SfMessageHeader}
 import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field._
 import org.sackfix.latency.LatencyActor.{RecordMsgLatenciesMsgIn, RecordMsgLatencyMsgIn}
@@ -238,7 +238,7 @@ class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: Actor
       senderCompIDField = SenderCompIDField(sessId.targetCompId),
       targetCompIDField = TargetCompIDField(sessId.senderCompId),
       msgSeqNumField = MsgSeqNumField(0),
-      sendingTimeField = SendingTimeField(LocalDateTime.now()))
+      sendingTimeField = SendingTimeField(SfFixUtcTime.now))
 
     new SfMessage(header, outgoingMsgBody)
   }

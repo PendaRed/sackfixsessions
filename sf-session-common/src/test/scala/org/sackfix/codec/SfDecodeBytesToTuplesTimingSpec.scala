@@ -1,7 +1,7 @@
 package org.sackfix.codec
 
 import akka.util.ByteString
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -112,7 +112,7 @@ Duration = 171898 nano secs
 Duration = 210872 nano secs
 
   */
-class SfDecodeBytesToTuplesTimingSpec extends FlatSpec {
+class SfDecodeBytesToTuplesTimingSpec extends AnyFlatSpec {
   val SOH = 1.toChar
 
   behavior of "SfDecodeBytesToTuples"

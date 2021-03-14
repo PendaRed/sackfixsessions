@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.LogonMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class InitiateConnectionSpec extends FlatSpec {
+class InitiateConnectionSpec extends AnyFlatSpec {
   behavior of "InitiateConnection"
   val session = new SfSessionStub
 

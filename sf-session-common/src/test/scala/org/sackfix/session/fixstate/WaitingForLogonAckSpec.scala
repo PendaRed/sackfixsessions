@@ -1,12 +1,12 @@
 package org.sackfix.session.fixstate
 
 import org.sackfix.session.{SfAction, SfActionCounterpartyHeartbeat, SfSessionStub}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class WaitingForLogonAckSpec extends FlatSpec {
+class WaitingForLogonAckSpec extends AnyFlatSpec {
   behavior of ""
   val session = new SfSessionStub
 

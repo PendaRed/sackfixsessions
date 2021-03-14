@@ -1,8 +1,12 @@
 /target
 /project/target
+/project/target/config-classes
 /.idea
 /logs/
 /test/
 */target
 */logs
 */.idea
+*/.bsp
+/.bsp/sbt.json
+/project/project/

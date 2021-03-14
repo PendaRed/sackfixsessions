@@ -1,14 +1,10 @@
 package org.sackfix.latency
 
-import java.text.SimpleDateFormat
-import java.time.LocalDateTime
-
 import akka.actor.{Actor, ActorLogging, Props}
 import org.sackfix.latency.LatencyActor._
-import org.sackfix.session.SfSessionActor.ConnectionEstablishedMsgIn
-import org.sackfix.session.heartbeat.SfHeartbeater
-import org.sackfix.session.{SfMessageStore, SfSessOutEventRouter, SfSessionId, SfSessionType}
 
+import java.text.SimpleDateFormat
+import java.time.LocalDateTime
 import scala.collection.mutable
 
 /**
@@ -39,7 +35,7 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
   val lookupByStage = mutable.Map.empty[String, mutable.Map[String, (Long, Int)]]
 
   // Correlations are unique and will grow, so need to be able to time them out oldest first
-  val fifoCorrelations = mutable.Queue.empty[String]
+  val fifoCorrelations: mutable.Queue[String] = mutable.Queue.empty[String]
 
   val df = new SimpleDateFormat("HH:mm:ss.SSS")
 
@@ -67,7 +63,7 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
 
   }
 
-  def dump() = {
+  def dump(): Unit = {
 //    val allStages = lookupByStage.keySet.toList.sorted
 //    val allCorrelationIds = lookupByCorrelation.keySet
 //    val allAggregations = lookupByAggregation.keySet
@@ -101,7 +97,7 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
               if (totCnt._2 > 0) {
                 val averageMicros:Int = ((totCnt._1 / totCnt._2)/1000).toInt
                 val duration = averageMicros-acc._2
-                (acc._1+s",${duration}",averageMicros)
+                (acc._1+s",$duration",averageMicros)
               } else (acc._1+",-", acc._2)
             })._1
         }
@@ -119,7 +115,7 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
   private def dump(title:String, keys:List[String], dataLookup:mutable.Map[String, mutable.Map[String, (Long, Int)]]) :String = {
     val str =
       keys.map(mainId => {
-        s" ${mainId} ${
+        s" $mainId ${
           dataLookup.get(mainId) match {
             case Some(innerMap) =>
               innerMap.keySet.toList.sorted.map((innerID: String) => {
@@ -137,12 +133,12 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
 
   }
 
-  def removeCorrelationData(correlationId:String) = {
+  def removeCorrelationData(correlationId:String): Option[Long] = {
     lookupByCorrelation.remove(correlationId)
     correlationStartTime.remove(correlationId)
   }
 
-  def recordTStampInfo(info:RecordLatencyMsgIn) = {
+  def recordTStampInfo(info:RecordLatencyMsgIn): Unit = {
     if (info.removeAnyPreviousRecord) {
       removeCorrelationData(info.correlationId)
     }
@@ -157,7 +153,7 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
 
 
     val startTime = correlationStartTime.getOrElse(info.correlationId, System.nanoTime())
-    val duration = (info.timeStampNanos-startTime)
+    val duration = info.timeStampNanos-startTime
     val aggregateDuration = lookupByAggregation.getOrElse(info.aggregationTag,createNewAggregation(info, duration))
     val aggregateStage = lookupByStage.getOrElse(info.stageName,createNewStage(info, duration))
     val correlation = lookupByCorrelation.getOrElse(info.correlationId, createNewCorrelation(info, duration))

@@ -2,7 +2,6 @@ package org.sackfix.session
 
 import java.time.LocalDateTime
 import java.time.format.{DateTimeFormatter, DateTimeParseException}
-
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.io.Tcp.Write
 import akka.testkit.{ImplicitSender, TestActors, TestKit, TestProbe}
@@ -13,7 +12,9 @@ import org.sackfix.session.SfSessionActor._
 import org.sackfix.session.fixstate.{ActiveNormalSession, MessageFixtures}
 import org.sackfix.session.heartbeat.SfHeartbeatListener
 import org.sackfix.session.heartbeat.SfHeartbeaterActor.AddListenerMsgIn
-import org.scalatest._
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
@@ -21,7 +22,7 @@ import scala.concurrent.duration._
   * Created by Jonathan during 2016.
   */
 class SfSessionActorSpec extends TestKit(ActorSystem("MySpec")) with ImplicitSender
-  with WordSpecLike with Matchers with BeforeAndAfterAll  {
+  with AnyWordSpecLike with Matchers with BeforeAndAfterAll  {
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -43,7 +44,7 @@ class SfSessionActorSpec extends TestKit(ActorSystem("MySpec")) with ImplicitSen
       sessionActor ! ConnectionEstablishedMsgIn(sessOutRouter, Some(logonMessage), None)
 
       // so, it should register with the heartbeater
-      val hbListener = probe1.expectMsgType[AddListenerMsgIn](200 millis)
+      val hbListener = probe1.expectMsgType[AddListenerMsgIn](200.millis)
 
       Thread.sleep(100)
       // It replies with a login message

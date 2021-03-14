@@ -1,12 +1,12 @@
 package org.sackfix.session.filebasedstore
 
 import org.sackfix.session.{SfSession, SfSessionId, SfSessionImpl, SfSessionStub}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfFileMessageStoreSpec extends FlatSpec {
+class SfFileMessageStoreSpec extends AnyFlatSpec {
 
   behavior of "SfFileMessageStore"
 

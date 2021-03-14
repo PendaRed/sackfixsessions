@@ -1,14 +1,14 @@
 package org.sackfix.codec
 
 import org.sackfix.field._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during November 2016.
   */
-class SfDecodeTuplesToMsgTimingSpec extends FlatSpec {
+class SfDecodeTuplesToMsgTimingSpec extends AnyFlatSpec {
   val SOH = 1.toChar
 
   behavior of "SfDecodeTuplesToMsg"

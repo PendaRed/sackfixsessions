@@ -1,7 +1,6 @@
 package org.sackfix.session
 
 import java.time.format.{DateTimeFormatter, DateTimeParseException}
-
 import akka.actor.{ActorRef, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import org.sackfix.common.message.SfMessage
@@ -12,6 +11,8 @@ import org.sackfix.session.SfSessionActor._
 import org.sackfix.session.fixstate.MessageFixtures
 import org.sackfix.session.heartbeat.SfHeartbeaterActor.AddListenerMsgIn
 import org.scalatest._
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
@@ -21,7 +22,7 @@ import scala.concurrent.duration._
   * Created by Jonathan during 2016.
   */
 class SfSessionActorTimingSpec extends TestKit(ActorSystem("MySpec")) with ImplicitSender
-  with WordSpecLike with Matchers with BeforeAndAfterAll  {
+  with AnyWordSpecLike with Matchers with BeforeAndAfterAll  {
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -50,7 +51,7 @@ class SfSessionActorTimingSpec extends TestKit(ActorSystem("MySpec")) with Impli
         sessionActor ! ConnectionEstablishedMsgIn(sessOutRouter, Some(logonMessage), None)
 
         // so, it should register with the heartbeater
-        val hbListener = probe1.expectMsgType[AddListenerMsgIn](1200 millis)
+        val hbListener = probe1.expectMsgType[AddListenerMsgIn](1200.millis)
 
         var testNum=0
         msgs.foldLeft(0)((testNum, msg: SfMessage) => {

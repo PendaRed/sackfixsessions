@@ -72,7 +72,7 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
     ret
   }
 
-  def startSession() = {
+  def startSession(): Unit = {
     handler match {
       case None =>
         getSocketDetails match {
@@ -86,7 +86,7 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
     }
   }
 
-  def endSession = {
+  def endSession() = {
     handler match {
       case Some(h) =>
         log.info(s"Closing socket to:")
@@ -97,11 +97,11 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
     }
   }
 
-  def receive = {
+  def receive: Receive = {
     case CommandFailed(_: Connect) =>
       failedConnectionCounter += 1
       log.error(s"Failed to connect to Fix Server [$failedConnectionCounter] times at [$socketDescription], will reconnect in $reconnectIntervalSecs seconds")
-      system.scheduler.scheduleOnce(reconnectIntervalSecs seconds, self, InitiatorReconnectMsgIn)
+      system.scheduler.scheduleOnce(reconnectIntervalSecs.seconds, self, InitiatorReconnectMsgIn)
     case c@Connected(remote, local) =>
       val debugHostName = remote.getHostName + ":" + remote.getPort
       log.info(s"Outgoing connnection to [${debugHostName}] established")
@@ -128,7 +128,7 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
       startSession()
     case InitiatorCloseNowMsgIn(cause: String) =>
       log.info(s"SessionClose called: $cause")
-      endSession
+      endSession()
     case actorMsg@_ =>
       log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
   }

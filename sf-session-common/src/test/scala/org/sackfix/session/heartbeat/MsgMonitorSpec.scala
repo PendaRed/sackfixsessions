@@ -1,11 +1,11 @@
 package org.sackfix.session.heartbeat
 
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2016.
   */
-class MsgMonitorSpec extends FlatSpec {
+class MsgMonitorSpec extends AnyFlatSpec {
   behavior of "MsgMonitor"
 
   it should "Determine the number of heartbeats properly" in {
