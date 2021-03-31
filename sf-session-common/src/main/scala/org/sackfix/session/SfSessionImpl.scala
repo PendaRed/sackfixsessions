@@ -301,7 +301,7 @@ class SfSessionImpl(sessionType: SfSessionType,
     * Note that its generally stupid to resent admin messages....up to you if you stick them in your
     * message store or not.
     *
-    * @TODO the fix spec suggests some folks may not want to resent certain messages such as new order singles
+    * TODO the fix spec suggests some folks may not want to resend certain messages such as new order singles
     *       after a certain time has elapsed....so should let the users configure a filter here - or a list of
     *       excluded msg types
     * @param beginSeqNum The first one to send back

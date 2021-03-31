@@ -57,7 +57,7 @@ class SfSessionTimeHandler(heartbeatMs:Long,
     sendMonitor.recordActivity(System.currentTimeMillis())
   }
 
-  override def heartBeatFired: Unit = {
+  override def heartBeatFired(): Unit = {
     val nowMs = System.currentTimeMillis()
 
     sendMonitor.isNewElapsedCount(nowMs) match {

@@ -13,13 +13,13 @@ class SfHeartbeaterSpec extends AnyFlatSpec {
     var count = 0
     var count2 = 0
     heartbeater.listeners += new SfHeartbeatListener {
-      override def heartBeatFired = {
+      override def heartBeatFired() = {
         count+=1
 //        println(s"1: $count")
       }
     }
     heartbeater.listeners += new SfHeartbeatListener {
-      override def heartBeatFired = {
+      override def heartBeatFired() = {
         count2+=1
 //        println(s"2: $count2")
       }

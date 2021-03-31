@@ -22,7 +22,7 @@ object LatencyActor {
   case class ServeLatencyReportMsgIn(replyTo: ActorRef[ServeLatencyReportReply]) extends LatencyCommand
   // Add a possibly last message here to - less work passing msgs about
   case class LogCorrelationMsgIn(additionalLog:Option[RecordMsgLatencyMsgIn], correlationId:String, removeDate:Boolean) extends LatencyCommand
-  case class ServeLatencyReportReply(report:String, tstamp:Long) extends LatencyCommand
+  case class ServeLatencyReportReply(report:String, tstamp:Long)
 }
 class LatencyActor(context: ActorContext[LatencyCommand], val maxNumCorrelationIds:Int) extends AbstractBehavior[LatencyCommand](context) {
 
