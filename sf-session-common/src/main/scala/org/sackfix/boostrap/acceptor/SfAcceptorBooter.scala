@@ -1,11 +1,14 @@
 package org.sackfix.boostrap.acceptor
 
-import akka.actor.{ActorContext, ActorRef}
-import org.sackfix.boostrap.BusinessCommsHandler
+import akka.actor.typed.ActorRef
+import akka.actor.typed.scaladsl.ActorContext
+import akka.io.Tcp
+import org.sackfix.boostrap.{BusinessCommsHandler, SystemErrorNeedsDevOpsMsg}
 import org.sackfix.boostrap.acceptor.SfAccepterSocketActor.{AcceptorEndTimeMsgIn, AcceptorStartTimeMsgIn}
 import org.sackfix.latency.LatencyActor
+import org.sackfix.latency.LatencyActor.LatencyCommand
 import org.sackfix.session._
-import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, StartBeatingMsgIn, StopBeatingMsgIn}
+import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, HbCommand, StartBeatingMsgIn, StopBeatingMsgIn}
 import org.sackfix.session.heartbeat.{SfHeartbeaterActor, SfSessionSchedulListener, SfSessionScheduler}
 import org.slf4j.LoggerFactory
 
@@ -35,7 +38,8 @@ import java.time.LocalDateTime
   *                           It in turn can reply to the sfSessionActor by sending it a
   *                           org.sackfix.session.FixMsgOut(msgBody: SfFixMessageBody)
   */
-case class SfAcceptorBooter(guardianActor: ActorRef, context: ActorContext,
+case class SfAcceptorBooter(guardianActor: ActorRef[SystemErrorNeedsDevOpsMsg],
+                            context: ActorContext[SystemErrorNeedsDevOpsMsg],
                             messageStoreDetails:Option[SfMessageStore],
                             sessionOpenTodayStore: SessionOpenTodayStore,
                             businessComms: BusinessCommsHandler) {
@@ -53,8 +57,8 @@ case class SfAcceptorBooter(guardianActor: ActorRef, context: ActorContext,
   logger.info("Config:"+settings.dumpConfig())
 
   val sessionLookup = new SfSessionLookup
-  val heartbeater: ActorRef = context.actorOf(SfHeartbeaterActor.props(1000))
-  val latencyRecorderActorRef: Option[ActorRef] = Some(context.actorOf(LatencyActor.props(1000), name="SfLatencyActor"))
+  val heartbeater: ActorRef[HbCommand] = context.spawn(SfHeartbeaterActor(1000), name = "SfHeartbeaterActor")
+  val latencyRecorderActorRef: Option[ActorRef[LatencyCommand]] = Some(context.spawn(LatencyActor(1000), name="SfLatencyActor"))
 
   // Loop through all of the configured potential end points that may connect and set them up
   // and add to the cache of clients who are allowed to connect
@@ -63,7 +67,7 @@ case class SfAcceptorBooter(guardianActor: ActorRef, context: ActorContext,
       settings.senderCompID,
       clientConfig.targetCompID)
 
-    val sessionActor = context.actorOf(SfSessionActor.props(SfAcceptor, messageStoreDetails,
+    val sessionActor = context.spawn(SfSessionActor(SfAcceptor, messageStoreDetails,
       sessionId,
       clientConfig.heartBtIntSecs,
       heartbeater,
@@ -76,7 +80,7 @@ case class SfAcceptorBooter(guardianActor: ActorRef, context: ActorContext,
     sessionLookup.sessionCache.add(sessionId, sessionActor)
   }
 
-  val serverSocketActor: ActorRef = context.actorOf(SfAccepterSocketActor.props(
+  val serverSocketActor: ActorRef[Tcp.Event] = context.spawn(SfAccepterSocketActor(
     settings.socketAcceptAddress, settings.socketAcceptPort, sessionLookup, businessComms, guardianActor,
     latencyRecorderActorRef), name="SfServerSocketActor")
 

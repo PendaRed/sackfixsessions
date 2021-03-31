@@ -1,17 +1,16 @@
 package org.sackfix.session
 
-import java.time.LocalDateTime
-
-import akka.actor.ActorRef
+import akka.actor.typed.ActorRef
 import org.sackfix.codec.{DecodingFailedData, SfDecodeTuplesToMsg}
 import org.sackfix.common.message.{SfFixUtcTime, SfMessage, SfMessageHeader}
 import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field.{NewSeqNoField, _}
 import org.sackfix.fix44.{RejectMessage, SequenceResetMessage}
-import org.sackfix.latency.LatencyActor.{RecordMsgLatenciesMsgIn, RecordMsgLatencyMsgIn}
+import org.sackfix.latency.LatencyActor.LatencyCommand
 import org.sackfix.session.fixstate._
 import org.slf4j.LoggerFactory
 
+import java.time.LocalDateTime
 import scala.collection.immutable.HashSet
 
 /**
@@ -31,7 +30,7 @@ class SfSessionImpl(sessionType: SfSessionType,
                     messageStoreDetails: Option[SfMessageStore],
                     sessionActor: SfSessionActorOutActions, sessionId: SfSessionId,
                     heartbeatIntervalSecs: Int,
-                    val latencyRecorder: Option[ActorRef] = None,
+                    val latencyRecorder: Option[ActorRef[LatencyCommand]] = None,
                     override val sessionMessageTypes: HashSet[String] = SfSession.SessionMessageTypes
                    ) extends SfSession(sessionType, sessionId, heartbeatIntervalSecs) {
 
@@ -56,9 +55,9 @@ class SfSessionImpl(sessionType: SfSessionType,
 
   /** If the first session of the day then reset to 1.
     */
-  def resetSeqNums = {
-    if (nextMySeqNum!=1 && nextTheirSeqNum!=1) {
-      log.debug(s"${idStr} resetSeqNums called, setting seq numbers to 1 (the old vals were myNextSeqNum=$nextMySeqNum theirNextSeqNum=$nextTheirSeqNum)")
+  def resetSeqNums: Unit = {
+    if (nextMySeqNum != 1 && nextTheirSeqNum != 1) {
+      log.debug(s"$idStr resetSeqNums called, setting seq numbers to 1 (the old vals were myNextSeqNum=$nextMySeqNum theirNextSeqNum=$nextTheirSeqNum)")
       nextMySeqNum = 1
       nextTheirSeqNum = 1
       persistentStore.foreach({ store =>
@@ -78,7 +77,7 @@ class SfSessionImpl(sessionType: SfSessionType,
       // OK, this is a mistake on my part when I coded it prior to reading the test spec.
       // Basically its impossible for them to reset on ongoing session to a prior sequence number
       // but I will leave it in place as its already coded....
-      if (nextTheirSeqNum<origTheirSeqNum) {
+      if (nextTheirSeqNum < origTheirSeqNum) {
         store.archiveTodaysReplay(sessionId)
       }
     })
@@ -146,10 +145,11 @@ class SfSessionImpl(sessionType: SfSessionType,
   /**
     * Generates the full SfMessage which can then be sent over the wire
     * Also store the message in the message store - but NOT admin messages.
+    *
     * @return The generate SfMessage containing the correct sequence numbers and comp id, and also
     *         the fixString which represents the fix message
     */
-  def sendAMessage(msgBody: SfFixMessageBody, correlationId:String="") : Unit = {
+  def sendAMessage(msgBody: SfFixMessageBody, correlationId: String = ""): Unit = {
     val msg = createMessage(msgBody.msgType, msgBody)
     val msgFixStr = msg.fixStr
     if (!isMessageFixSessionMessage(msg.body.msgType)) {
@@ -164,7 +164,7 @@ class SfSessionImpl(sessionType: SfSessionType,
     * Close the persistent store and record the time the session closed.  If it is opened tomorrow then
     * sequence numbers reset down to 1
     */
-  def close = {
+  def close: Unit = {
     persistentStore.foreach(_.close(sessionId))
     lastCloseTime = Some(LocalDateTime.now())
   }
@@ -173,9 +173,8 @@ class SfSessionImpl(sessionType: SfSessionType,
     * When a client connects, and established the socket then we should read in the details from
     * file.  Note that now we have index files as well this could be quite slow - implementation
     * dependency within your store
-    * @param readInitialSequenceNumbers
     */
-  def openStore(readInitialSequenceNumbers:Boolean) = {
+  def openStore(readInitialSequenceNumbers: Boolean): Unit = {
     persistentStore.foreach(messageStore =>
       messageStore.initialiseSession(sessionId, readInitialSequenceNumbers) match {
         case SfSequencePair(ourSeqNum: Int, theirSeqNum: Int) =>
@@ -195,15 +194,15 @@ class SfSessionImpl(sessionType: SfSessionType,
     lastTheirSeqNum = incomingMessage.header.msgSeqNumField.value
 
     if (compIdsCorrect(incomingMessage.header)) {
-      fireEventToStateMachine(new SfSessionFixMessageEvent(incomingMessage))
+      fireEventToStateMachine(SfSessionFixMessageEvent(incomingMessage))
     }
   }
 
-  def compIdsCorrect(header: SfMessageHeader) = {
+  def compIdsCorrect(header: SfMessageHeader): Boolean = {
     val sessId = SfSessionId(header)
     if (sessId == sessionId) true
     else {
-      val beginStrWrong = (sessId.beginString != sessionId.beginString)
+      val beginStrWrong = sessId.beginString != sessionId.beginString
       val msg = {
         if (beginStrWrong) s"Fix version [${sessId.beginString}] should be [${sessionId.beginString}]"
         else "Message contains invalid CompId fields"
@@ -211,13 +210,13 @@ class SfSessionImpl(sessionType: SfSessionType,
       if (sessionState.isSessionOpen) {
         // If the session is open then different response than if its during login.
         if (beginStrWrong) {
-          log.warn(s"[$idStr] Message has wrong beginStr [${sessId.toString}],  expected [${sessionId}] logout")
+          log.warn(s"[$idStr] Message has wrong beginStr [${sessId.toString}],  expected [$sessionId] logout")
           fireEventToStateMachine(SfControlForceLogoutAndClose(msg, Some(2000)))
         } else {
           // 1.	Send Reject (session-level) message referencing invalid SenderCompID or TargetCompID
           // (>= FIX 4.2: SessionRejectReason = "CompID problem")
-          log.warn(s"[$idStr] Message has wrong header fields [${sessId.toString}],  expected [${sessionId}] inc their seq num, reject message and logout")
-          sendRejectMessage(header.msgSeqNumField.value, false,
+          log.warn(s"[$idStr] Message has wrong header fields [${sessId.toString}],  expected [$sessionId] inc their seq num, reject message and logout")
+          sendRejectMessage(header.msgSeqNumField.value, incSeqNum = false,
             SessionRejectReasonField(SessionRejectReasonField.CompidProblem),
             TextField(msg))
           fireEventToStateMachine(SfControlForceLogoutAndClose(msg, Some(2000)))
@@ -225,8 +224,8 @@ class SfSessionImpl(sessionType: SfSessionType,
       } else {
         // reject the message, as no config for this client, ie they maybe changed the compid after login.
         // An invalid login message should result in closing the session.
-        log.warn(s"[$idStr] Message has wrong header fields [${sessId.toString}],  expected [${sessionId}] reject message")
-        sendRejectMessage(header.msgSeqNumField.value, false,
+        log.warn(s"[$idStr] Message has wrong header fields [${sessId.toString}],  expected [$sessionId] reject message")
+        sendRejectMessage(header.msgSeqNumField.value, incSeqNum = false,
           SessionRejectReasonField(SessionRejectReasonField.CompidProblem),
           TextField(msg))
       }
@@ -234,7 +233,7 @@ class SfSessionImpl(sessionType: SfSessionType,
     }
   }
 
-  def fireEventToStateMachine(ev: SfSessionEvent) = {
+  def fireEventToStateMachine(ev: SfSessionEvent): Unit = {
     sessionState = sessionState.receiveEvent(this, ev, handleAction)
   }
 
@@ -248,13 +247,13 @@ class SfSessionImpl(sessionType: SfSessionType,
     *
     * @param action The action
     */
-  def handleAction(action: SfAction) = action match {
+  def handleAction(action: SfAction): Unit = action match {
     case SfActionStartTimeout(id, durationMs) =>
       sessionActor.addControlTimeout(id, durationMs)
     case SfActionCloseSocket() =>
-      sessionActor.closeSessionSocket
+      sessionActor.closeSessionSocket()
     case SfActionSendMessageToFix(msgBody) =>
-      sendAMessage(msgBody,"")
+      sendAMessage(msgBody)
     case SfActionResendMessages(beginSeqNum: Int, endSeqNum: Int) =>
       replayMessages(beginSeqNum, endSeqNum)
     case SfActionCounterpartyHeartbeat(heartbeatSecs: Int) => setSessionHeartbeatToBeTheirs(heartbeatSecs)
@@ -262,18 +261,19 @@ class SfSessionImpl(sessionType: SfSessionType,
       // Forward to OMS (Order Management System..or position keeping...or whatever)
       sessionActor.forwardBusinessMessageFromSocket(msg)
     case SfActionBusinessSessionOpenForSending =>
-      sessionActor.forwardBusinessSessionIsOpen
+      sessionActor.forwardBusinessSessionIsOpen()
     case SfActionBusinessSessionClosedForSending =>
-      sessionActor.forwardBusinessSessionIsClosed
+      sessionActor.forwardBusinessSessionIsClosed()
   }
 
   /**
     * Apparently the session should use the initiators heartbeat config in preference to the
     * acceptors heartbeat.
+    *
     * @param heartbeatSecs The new heartbeat diration in seconds
     */
-  private def setSessionHeartbeatToBeTheirs(heartbeatSecs: Int) = {
-    if (heartbeatSecs != counterpartyHeartbeatIntervalSecs && sessionType==SfAcceptor) {
+  private def setSessionHeartbeatToBeTheirs(heartbeatSecs: Int): Unit = {
+    if (heartbeatSecs != counterpartyHeartbeatIntervalSecs && sessionType == SfAcceptor) {
       log.info("Initiator heartbeat is {}, changing session to use this value instead of {}",
         heartbeatSecs, heartbeatIntervalSecs)
       counterpartyHeartbeatIntervalSecs = heartbeatSecs
@@ -344,21 +344,21 @@ class SfSessionImpl(sessionType: SfSessionType,
   }
 
   def getMessageFixStrFromStore(seqNo: Int): Option[String] = {
-    persistentStore.map(_.readMessage(sessionId, seqNo)).flatten
+    persistentStore.flatMap(_.readMessage(sessionId, seqNo))
   }
 
-  def sendRejectMessage(refSeqNum: Int, incSeqNum:Boolean, reason: SessionRejectReasonField, explanation: TextField) = {
-    if (sessionState.isSessionOpen && refSeqNum==nextTheirSeqNum && incSeqNum) {
+  def sendRejectMessage(refSeqNum: Int, incSeqNum: Boolean, reason: SessionRejectReasonField, explanation: TextField): Unit = {
+    if (sessionState.isSessionOpen && refSeqNum == nextTheirSeqNum && incSeqNum) {
       if (log.isInfoEnabled) log.info(s"[${sessionId.id}] Msg with seq num {} failed to decode due to {}, still increment msgNum", refSeqNum, explanation.value)
       incrementTheirSeq
     } else {
-      if (log.isInfoEnabled) log.info(s"[${sessionId.id}] Msg with seq num {} failed to decode due to {}, not incrementing seq num, so next expected seq num= [${nextTheirSeqNum}]", refSeqNum, explanation.value)
+      if (log.isInfoEnabled) log.info(s"[${sessionId.id}] Msg with seq num {} failed to decode due to {}, not incrementing seq num, so next expected seq num= [$nextTheirSeqNum]", refSeqNum, explanation.value)
     }
     val outgoingMsgBody = RejectMessage(RefSeqNumField(refSeqNum),
       sessionRejectReasonField = Some(reason),
       textField = Some(explanation)
     )
-    sendAMessage(outgoingMsgBody,"")
+    sendAMessage(outgoingMsgBody)
   }
 
   /**
@@ -388,7 +388,7 @@ object SfSessionImpl {
             messageStoreDetails: Option[SfMessageStore],
             sessionActor: SfSessionActorOutActions, sessionId: SfSessionId,
             heartbeatIntervalSecs: Int,
-            latencyRecorder: Option[ActorRef] = None) = {
+            latencyRecorder: Option[ActorRef[LatencyCommand]] = None): SfSessionImpl = {
     new SfSessionImpl(sessionType, messageStoreDetails, sessionActor, sessionId, heartbeatIntervalSecs,
       latencyRecorder)
   }

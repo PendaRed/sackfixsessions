@@ -1,18 +1,21 @@
 package org.sackfix.boostrap.initiator
 
-import akka.actor.{ActorContext, ActorRef}
-import org.sackfix.boostrap.BusinessCommsHandler
+import akka.actor.typed.ActorRef
+import akka.actor.typed.scaladsl.ActorContext
+import akka.io.Tcp
+import org.sackfix.boostrap.{BusinessCommsHandler, SystemErrorNeedsDevOpsMsg}
 import org.sackfix.boostrap.initiator.SfInitiatorSocketActor.{InitiatorCloseNowMsgIn, InitiatorStartTimeMsgIn}
 import org.sackfix.latency.LatencyActor
+import org.sackfix.latency.LatencyActor.LatencyCommand
 import org.sackfix.session._
-import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, StartBeatingMsgIn, StopBeatingMsgIn}
+import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, HbCommand, StartBeatingMsgIn, StopBeatingMsgIn}
 import org.sackfix.session.heartbeat.{SfHeartbeaterActor, SfSessionSchedulListener, SfSessionScheduler}
 import org.slf4j.LoggerFactory
 
 import java.time.LocalDateTime
 
 /**
-  * Created by Jonathan during 2017.
+  * Created by Jonathan during 2017. Upgraded to akk types 2021
   *
   * This owns the Sack Fix acceptor.
   *
@@ -26,7 +29,7 @@ import java.time.LocalDateTime
 /**
   * Constructor
   *
-  * @param guardianActor       Your guardian actor, which should be able to take a message of type
+  * @param supervisorActor     Your guardian actor, which should be able to take a message of type
   *                      com.sackfix.bootstrap.SystemErrorNeedsDevOpsMsg and basically shutdown
   *                            eg the server port is already bound to.
   * @param messageStoreDetails The optional persisten store, and also a boolean indicating if
@@ -36,7 +39,7 @@ import java.time.LocalDateTime
   *                            It in turn can reply to the sfSessionActor by sending it a
   *                           org.sackfix.session.FixMsgOut(msgBody: SfFixMessageBody)
   */
-case class SfInitiatorBooter(guardianActor: ActorRef, context: ActorContext,
+case class SfInitiatorBooter(supervisorActor: ActorRef[SystemErrorNeedsDevOpsMsg], context: ActorContext[SystemErrorNeedsDevOpsMsg],
                              messageStoreDetails: Option[SfMessageStore],
                              sessionOpenTodayStore: SessionOpenTodayStore,
                              businessComms: BusinessCommsHandler) {
@@ -52,11 +55,11 @@ case class SfInitiatorBooter(guardianActor: ActorRef, context: ActorContext,
   // Load the config into an extension object, so can get at values as fields.
   val settings: SfInitiatorSettingsImp = SfInitiatorSettings(context.system)
   logger.info("Config:" + settings.dumpConfig())
-  val heartbeater: ActorRef = context.actorOf(SfHeartbeaterActor.props(1000), name="heartbeater")
-  val latencyRecorderActorRef: Option[ActorRef] = Some(context.actorOf(LatencyActor.props(1000), name="SfLatencyRecorder"))
+  val heartbeater: ActorRef[HbCommand] = context.spawn(SfHeartbeaterActor(1000), name="heartbeater")
+  val latencyRecorderActorRef: Option[ActorRef[LatencyCommand]] = Some(context.spawn(LatencyActor(1000), name="SfLatencyRecorder"))
 
   // Maybe they have configured many client connections, I have no idea why they would.....
-  val sockets: List[ActorRef] = settings.sessionConfigs.map { clientConfig: SfInitiatorTargetCompSettings =>
+  val sockets: List[ActorRef[Tcp.Event]] = settings.sessionConfigs.map { clientConfig: SfInitiatorTargetCompSettings =>
     val sessionId = new SfSessionId(settings.beginString,
       settings.senderCompID,
       clientConfig.targetCompID)
@@ -66,7 +69,7 @@ case class SfInitiatorBooter(guardianActor: ActorRef, context: ActorContext,
     }
 
 
-    val sessionActor = context.actorOf(SfSessionActor.props(SfInitiator, messageStoreDetails,
+    val sessionActor = context.spawn(SfSessionActor(SfInitiator, messageStoreDetails,
       sessionId,
       clientConfig.heartBtIntSecs,
       heartbeater,
@@ -78,7 +81,7 @@ case class SfInitiatorBooter(guardianActor: ActorRef, context: ActorContext,
     val sessionLookup = new SfSessionLookup
     sessionLookup.sessionCache.add(sessionId, sessionActor)
 
-    val initiatorSocket = context.actorOf(SfInitiatorSocketActor.props(sessionLookup,
+    val initiatorSocket = context.spawn(SfInitiatorSocketActor(sessionLookup,
       sessionId, sessionActor,
       clientConfig.reconnectIntervalSecs, clientConfig.socketConfigs, businessComms,
       latencyRecorderActorRef), name=s"${sessionId.actorNameId}:SfInitiatorSocketActor")

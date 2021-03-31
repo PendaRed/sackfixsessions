@@ -1,33 +1,37 @@
 package org.sackfix.socket
 
-import java.time.LocalDateTime
+import akka.actor.typed.{ActorRef, Behavior, Signal, Terminated}
+import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import java.time.LocalDateTime
 import akka.io.Tcp
-import akka.io.Tcp.Event
 import org.sackfix.boostrap.BusinessCommsHandler
 import org.sackfix.codec._
 import org.sackfix.common.message.{SfFixUtcTime, SfMessage, SfMessageHeader}
 import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field._
-import org.sackfix.latency.LatencyActor.{RecordMsgLatenciesMsgIn, RecordMsgLatencyMsgIn}
-import org.sackfix.session.SfSessionActor.{ConnectionEstablishedMsgIn, FixMsgIn, SendRejectMessageOut, TcpSaysSocketIsClosedMsgIn}
+import org.sackfix.latency.LatencyActor.{LatencyCommand, RecordMsgLatenciesMsgIn, RecordMsgLatencyMsgIn}
+import org.sackfix.session.SfSessionActor.{ConnectionEstablishedMsgIn, FixMsgIn, SendRejectMessageOut, SfSessionActorCommand, TcpSaysSocketIsClosedMsgIn}
 import org.sackfix.session._
-import org.sackfix.socket.SfSocketHandlerActor.{CloseSocketMsgIn, InitiatorSocketOpenMsgIn}
+import org.sackfix.socket.SfSocketHandlerActor.{CloseSocketMsgIn, InitiatorSocketOpenMsgIn, SfSocketHandlerCommand}
 import org.slf4j.LoggerFactory
+import akka.{actor => classic}
+// adds support for actors to a classic actor system and context
+import akka.actor.typed.scaladsl.adapter._
 
 object SfSocketHandlerActor {
   /**
     * @param connection See Using TCP - Akka Documentation, you can Write to this actor.
     */
-  def props(sessionType: SfSessionType, connection: ActorRef, sessionLookup: SfSessionLookup,
+  def apply(sessionType: SfSessionType, connection: classic.ActorRef, sessionLookup: SfSessionLookup,
             remoteHostName: String, businessComms: BusinessCommsHandler,
-            latencyRecorder: Option[ActorRef]): Props =
-    Props(new SfSocketHandlerActor(sessionType, connection, sessionLookup, remoteHostName,
-      businessComms, latencyRecorder))
+            latencyRecorder: Option[ActorRef[LatencyCommand]]): Behavior[Tcp.Event] =
+    Behaviors.setup(context => new SfSocketHandlerActor(context, sessionType, connection,
+      sessionLookup, remoteHostName, businessComms, latencyRecorder))
 
-  case class InitiatorSocketOpenMsgIn(sessionId:SfSessionId, sessionActor:ActorRef)
-  case object CloseSocketMsgIn
+  trait SfSocketHandlerCommand extends Tcp.Event
+  case class InitiatorSocketOpenMsgIn(sessionId:SfSessionId, sessionActor:ActorRef[SfSessionActorCommand]) extends SfSocketHandlerCommand
+  case object CloseSocketMsgIn extends SfSocketHandlerCommand
 
 }
 
@@ -56,10 +60,11 @@ object SfSocketHandlerActor {
   *                        is established with the correct sender and target comp id's
   * @param latencyRecorder An optional microsecond latency recorder.
   */
-class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: ActorRef,
+class SfSocketHandlerActor(context: ActorContext[Tcp.Event],
+                           val sessionType: SfSessionType, val connection: classic.ActorRef,
                            val sessionLookup: SfSessionLookup, val remoteHostName: String,
                            val businessComms: BusinessCommsHandler,
-                           val latencyRecorder: Option[ActorRef]) extends Actor with ActorLogging {
+                           val latencyRecorder: Option[ActorRef[LatencyCommand]]) extends AbstractBehavior[Tcp.Event](context) {
 
   import Tcp._
 
@@ -73,38 +78,47 @@ class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: Actor
   private var outEventRouter: Option[SfSessOutEventRouter] = None
 
   // sign death pact: this Actor terminates when the connection breaks
-  context watch connection
+  context.watch( connection)
 
 
-  def receive = {
-    case InitiatorSocketOpenMsgIn(sessionId:SfSessionId, sessionActor:ActorRef) =>
+  override def onMessage(msg: Tcp.Event): Behavior[Tcp.Event] =
+    msg match {
+    case InitiatorSocketOpenMsgIn(sessionId:SfSessionId, sessionActor:ActorRef[SfSessionActorCommand]) =>
       // Tell the session that the connection is established.
       tellSessionAboutTheConnection(sessionActor, sessionId, None, None)
-    case Received(data) => fixDecodeByteString(data)
+      Behaviors.same
+    case Received(data) =>
+      fixDecodeByteString(data)
+      Behaviors.same
     case PeerClosed =>
-      log.info(s"Detected PeerClosed to [$remoteHostName], closing myself down")
+      context.log.info(s"Detected PeerClosed to [$remoteHostName], closing myself down")
       // If we had an established session then tell the session actor that its gone
       tellSessionActorCommsIsDown
-      context stop self
+      Behaviors.stopped
     case Unbound =>
-      log.info(s"Socket closed to [$remoteHostName], closing myself down")
+      context.log.info(s"Socket closed to [$remoteHostName], closing myself down")
       tellSessionActorCommsIsDown
-      context stop self
-    case Terminated(connection) => // from the DeathWatch above
-      log.info(s"Detected death of actor connection to [$remoteHostName], closing myself down")
-      tellSessionActorCommsIsDown
-      context stop self
+      Behaviors.stopped
     case CloseSocketMsgIn =>
       closeSocket
+      Behaviors.same
     case _: ConnectionClosed =>
-      log.info(s"Connection closed to $remoteHostName")
+      context.log.info(s"Connection closed to [$remoteHostName], closing myself down")
       tellSessionActorCommsIsDown
-      context stop self
-    case actorMsg@_ =>
-      log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
+      Behaviors.stopped
+    case actorMsg@AnyRef =>
+      context.log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
+      Behaviors.same
   }
 
-  private def tellSessionAboutTheConnection(sfsessionActor: ActorRef, sessId: SfSessionId,
+  override def onSignal: PartialFunction[Signal, Behavior[Tcp.Event]] = {
+    case Terminated(connection) =>
+      context.log.info(s"Detected death of actor connection to [$remoteHostName], closing myself down")
+      tellSessionActorCommsIsDown
+      Behaviors.stopped
+  }
+
+  private def tellSessionAboutTheConnection(sfsessionActor: ActorRef[SfSessionActorCommand], sessId: SfSessionId,
                                             fixMsg: Option[SfMessage],
                                             decodingFailedData: Option[DecodingFailedData]): Unit = {
     if (outEventRouter.isEmpty) {
@@ -130,11 +144,11 @@ class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: Actor
     // Section 2m & 2t
     // 1.	Consider garbled and ignore message  (do not increment inbound MsgSeqNum) and continue accepting messages
     // 2.	Generate a "warning" condition in test output.
-    log.warning(reason)
+    context.log.warn(reason)
   }
 
   def closeSocket = {
-    log.info("Sending close to socket actor")
+    context.log.info("Sending close to socket actor")
     connection ! Close
   }
 
@@ -192,7 +206,7 @@ class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: Actor
           tellSessionAboutTheConnection(session, sessId, Some(msg), None)
         case None =>
           // spec says, if you have not logged on yet, then drop the connection right away
-          log.warning(s"Failed to locate session in session cache using [${sessId.toString}], closing socket")
+          context.log.warn(s"Failed to locate session in session cache using [${sessId.toString}], closing socket")
           closeSocket
       }
     } else {
@@ -211,11 +225,11 @@ class SfSocketHandlerActor(val sessionType: SfSessionType, val connection: Actor
               tellSessionAboutTheConnection(session, sessId, None, Some(decodingFailedData))
             case None =>
               // spec says, if you have not logged on yet, then drop the connection right away
-              log.warning(s"Replacing other failure, with socket close - they sent invalid session details (${sessId.toString()}) original error was: ${decodingFailedData.description.value}")
+              context.log.warn(s"Replacing other failure, with socket close - they sent invalid session details (${sessId.toString()}) original error was: ${decodingFailedData.description.value}")
               closeSocket
           }
         case None =>
-          log.warning(s"Failed to find mandatory session id fields, so closing socket,${decodingFailedData.description.value}")
+          context.log.warn(s"Failed to find mandatory session id fields, so closing socket,${decodingFailedData.description.value}")
           closeSocket
       }
     } else {

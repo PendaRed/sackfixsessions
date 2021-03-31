@@ -1,6 +1,7 @@
 package org.sackfix.latency
 
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import org.sackfix.latency.LatencyActor._
 
 import java.text.SimpleDateFormat
@@ -11,18 +12,19 @@ import scala.collection.mutable
   * Created by Jonathan during 2017.
   */
 object LatencyActor {
-  def props(maxNumCorrelationIds:Int): Props =
-    Props(new LatencyActor(maxNumCorrelationIds))
+  def apply(maxNumCorrelationIds:Int): Behavior[LatencyCommand] =
+    Behaviors.setup(context => new LatencyActor(context, maxNumCorrelationIds))
 
-  case class RecordLatencyMsgIn(aggregationTag:String, correlationId:String, stageName:String, timeStampNanos:Long, removeAnyPreviousRecord:Boolean= false)
-  case class RecordMsgLatencyMsgIn(seqNum:Int, stageName:String, timeStampNanos:Long, removeAnyPreviousRecord:Boolean= false)
-  case class RecordMsgLatenciesMsgIn(messages:List[RecordMsgLatencyMsgIn])
-  case object ServeLatencyReportMsgIn
+  sealed trait LatencyCommand
+  case class RecordLatencyMsgIn(aggregationTag:String, correlationId:String, stageName:String, timeStampNanos:Long, removeAnyPreviousRecord:Boolean= false) extends LatencyCommand
+  case class RecordMsgLatencyMsgIn(seqNum:Int, stageName:String, timeStampNanos:Long, removeAnyPreviousRecord:Boolean= false) extends LatencyCommand
+  case class RecordMsgLatenciesMsgIn(messages:List[RecordMsgLatencyMsgIn]) extends LatencyCommand
+  case class ServeLatencyReportMsgIn(replyTo: ActorRef[ServeLatencyReportReply]) extends LatencyCommand
   // Add a possibly last message here to - less work passing msgs about
-  case class LogCorrelationMsgIn(additionalLog:Option[RecordMsgLatencyMsgIn], correlationId:String, removeDate:Boolean)
-  case class ServeLatencyReportReply(report:String, tstamp:Long)
+  case class LogCorrelationMsgIn(additionalLog:Option[RecordMsgLatencyMsgIn], correlationId:String, removeDate:Boolean) extends LatencyCommand
+  case class ServeLatencyReportReply(report:String, tstamp:Long) extends LatencyCommand
 }
-class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging{
+class LatencyActor(context: ActorContext[LatencyCommand], val maxNumCorrelationIds:Int) extends AbstractBehavior[LatencyCommand](context) {
 
   // aggregation =>  stage->time,count
   val lookupByAggregation = mutable.Map.empty[String, mutable.Map[String, (Long, Int)]]
@@ -39,28 +41,30 @@ class LatencyActor(val maxNumCorrelationIds:Int) extends Actor with ActorLogging
 
   val df = new SimpleDateFormat("HH:mm:ss.SSS")
 
-  override def receive: Receive = {
-    case info:RecordLatencyMsgIn => recordTStampInfo(info)
+  override def onMessage(msg: LatencyCommand): Behavior[LatencyCommand] = {
+    msg match {
+      case info:RecordLatencyMsgIn => recordTStampInfo(info)
 
-    case infos:RecordMsgLatenciesMsgIn =>
-      infos.messages.foreach(i=>
-        recordTStampInfo(RecordLatencyMsgIn("SF", ""+i.seqNum, i.stageName, i.timeStampNanos)))
+      case infos:RecordMsgLatenciesMsgIn =>
+        infos.messages.foreach(i=>
+          recordTStampInfo(RecordLatencyMsgIn("SF", ""+i.seqNum, i.stageName, i.timeStampNanos)))
 
-    case RecordMsgLatencyMsgIn(seqNum:Int,stageName:String,timeStampNanos:Long, removeAnyPreviousRecord:Boolean) =>
-      recordTStampInfo(RecordLatencyMsgIn("SF", ""+seqNum, stageName, timeStampNanos, removeAnyPreviousRecord))
+      case RecordMsgLatencyMsgIn(seqNum:Int,stageName:String,timeStampNanos:Long, removeAnyPreviousRecord:Boolean) =>
+        recordTStampInfo(RecordLatencyMsgIn("SF", ""+seqNum, stageName, timeStampNanos, removeAnyPreviousRecord))
 
-    case LogCorrelationMsgIn(additionalLog, correlationId, removeData:Boolean) =>
-      additionalLog match {
-        case Some(RecordMsgLatencyMsgIn(seqNum:Int,stageName:String,timeStampNanos:Long,removeAnyPreviousRecord:Boolean)) =>
-          recordTStampInfo(RecordLatencyMsgIn("SF", ""+seqNum, stageName, timeStampNanos,removeAnyPreviousRecord))
-        case _ =>
-      }
-      val m = getCorrelationInfo(correlationId)
-      log.debug(m)
-      if (removeData) removeCorrelationData(correlationId)
-    case ServeLatencyReportMsgIn =>
-      sender ! ServeLatencyReportReply(getCorrelationDump, System.nanoTime())
-
+      case LogCorrelationMsgIn(additionalLog, correlationId, removeData:Boolean) =>
+        additionalLog match {
+          case Some(RecordMsgLatencyMsgIn(seqNum:Int,stageName:String,timeStampNanos:Long,removeAnyPreviousRecord:Boolean)) =>
+            recordTStampInfo(RecordLatencyMsgIn("SF", ""+seqNum, stageName, timeStampNanos,removeAnyPreviousRecord))
+          case _ =>
+        }
+        val m = getCorrelationInfo(correlationId)
+        context.log.debug(m)
+        if (removeData) removeCorrelationData(correlationId)
+      case m:ServeLatencyReportMsgIn =>
+        m.replyTo ! ServeLatencyReportReply(getCorrelationDump, System.nanoTime())
+    }
+    Behaviors.same
   }
 
   def dump(): Unit = {

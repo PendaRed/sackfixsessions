@@ -1,12 +1,14 @@
 package org.sackfix.session
 
-import akka.actor.ActorRef
+import akka.actor.typed.ActorRef
+import akka.{actor => classic}
 import org.sackfix.common.message.SfMessage
 import org.sackfix.common.validated.fields.SfFixMessageBody
+import org.sackfix.session.SfSessionActor.SfSessionActorCommand
 
 import scala.collection.mutable.ArrayBuffer
 
-class SfSessOutEventRouterStub(override val sfSessionActor: ActorRef, override val tcpActor: ActorRef) extends SfSessOutEventRouter {
+class SfSessOutEventRouterStub(override val sfSessionActor: ActorRef[SfSessionActorCommand], override val tcpActor: classic.ActorRef) extends SfSessOutEventRouter {
   val fixMessages = ArrayBuffer.empty[String]
   val businessMessages = ArrayBuffer.empty[SfFixMessageBody]
   var socketCloseCalled = false
@@ -15,7 +17,7 @@ class SfSessOutEventRouterStub(override val sfSessionActor: ActorRef, override v
   var informCloseCalled = false
   var rejectMessage : Option[SfMessage] = None
 
-  override def confirmCorrectTcpActor(checkTcpActor: ActorRef):Boolean = true
+  override def confirmCorrectTcpActor(checkTcpActor: classic.ActorRef):Boolean = true
 
   override def logOutgoingFixMsg(fixMsgStr: String) = {
     fixMessages += fixMsgStr
