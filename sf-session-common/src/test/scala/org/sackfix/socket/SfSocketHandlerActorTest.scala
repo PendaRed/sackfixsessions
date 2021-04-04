@@ -1,7 +1,9 @@
 package org.sackfix.socket
 
-import akka.actor.Actor.Receive
-import akka.actor.{Actor, ActorRef, ActorSystem}
+import akka.actor.Actor
+import akka.{actor => classic}
+import akka.actor.typed.scaladsl.adapter.ClassicActorSystemOps
+import akka.actor.typed.ActorSystem
 import akka.io.Tcp.{Event, Received, Write}
 import akka.testkit.TestActorRef
 import akka.util.ByteString
@@ -12,18 +14,19 @@ import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field.{SessionRejectReasonField, TextField}
 import org.sackfix.session.SfSessionActor.{ConnectionEstablishedMsgIn, SendRejectMessageOut}
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfSocketHandlerActorTest extends FlatSpec {
+class SfSocketHandlerActorTest extends AnyFlatSpec {
   val SOH=1.toChar
 
   // Required for the TestActorRef
-  implicit val system=ActorSystem()
+  implicit val system = classic.ActorSystem("SackFixFixServer")
+  val typedSystem: ActorSystem[Nothing] = system.toTyped
 
   val commsActorRef = TestActorRef(new Actor {
     def receive = {
@@ -59,21 +62,10 @@ class SfSocketHandlerActorTest extends FlatSpec {
 
     val received = ArrayBuffer.empty[String]
     val failedMsgs = ArrayBuffer.empty[String]
+
     val sessionLookup = new SfSessionLookup
 
-    val sessionActorRef = TestActorRef(new Actor {
-      def receive = {
-        case SfSessionActor.FixMsgIn(fixMsg: SfMessage) =>
-          //println("Got handed a message :"+fixMsg.fixStr)
-          received += fixMsg.fixStr
-        case SfSessionActor.SendRejectMessageOut(refSeqNum:Int, reason: SessionRejectReasonField, explanation: TextField) =>
-          println("FAILED:"+reason.toString()+ "\nExplained: "+explanation)
-          failedMsgs += explanation.value
-        case ConnectionEstablishedMsgIn(outEventRouter: SfSessOutEventRouter, fixMsg: Option[SfMessage],
-            decodingFailedData:Option[DecodingFailedData]) =>
-          fixMsg.foreach(received+= _.fixStr)
-      }
-    })
+    val sessionActorRef =  system.spawn(StubSessionActor(received, failedMsgs), "StubSessionActor")
     val sessId1 = new SfSessionId("Fix.4.4", "EXEC", "BANZAI")
     val sessId2 = new SfSessionId("Fix.4.4", "BANZAI", "EXEC")
     sessionLookup.sessionCache.add(sessId1, sessionActorRef)
@@ -90,10 +82,11 @@ class SfSocketHandlerActorTest extends FlatSpec {
         case msg: FixSessionClosed =>
       }
     }
-    val actorRef = TestActorRef(new SfSocketHandlerActor(SfAcceptor, commsActorRef, sessionLookup, "remotehostname", businessComsStub, None))
+    val actorRef = system.spawn(SfSocketHandlerActor(SfAcceptor, commsActorRef, sessionLookup, "remotehostname", businessComsStub, None), "SfSocketHandlerActor")
 
     actorRef ! Received(ByteString.fromString(themessages))
 
+    Thread.sleep(2500)
     val expected = List(
       s"8=FIX.4.4${SOH}9=86${SOH}35=A${SOH}49=EXEC${SOH}56=BANZAI${SOH}34=1${SOH}52=20121105-23:24:06.000${SOH}98=0${SOH}108=30${SOH}60=20121105-23:24:06${SOH}10=205${SOH}",
       s"8=FIX.4.4${SOH}9=86${SOH}35=A${SOH}49=BANZAI${SOH}56=EXEC${SOH}34=1${SOH}52=20121105-23:24:06.000${SOH}98=0${SOH}108=30${SOH}60=20121105-23:24:06${SOH}10=205${SOH}",

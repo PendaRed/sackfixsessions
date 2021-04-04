@@ -1,5 +1,8 @@
 package org.sackfix.session.heartbeat
 
+import akka.actor.typed.ActorRef
+import org.sackfix.session.SfSessionActor.SfSessionActorCommand
+
 import java.time.LocalDateTime
 
 /**
@@ -14,8 +17,8 @@ object SessionTimeoutHandler {
 }
 trait SessionTimeoutHandler {
 
-  def nothingSentFor(noHeartbeatsMissed:Int) : Unit
-  def nothingReceivedFor(noHeartbeatsMissedPlus20Percent:Int) : Unit
+  def nothingSentFor(noHeartbeatsMissed:Int, sessActor: ActorRef[SfSessionActorCommand]) : Unit
+  def nothingReceivedFor(noHeartbeatsMissedPlus20Percent:Int, sessActor: ActorRef[SfSessionActorCommand]) : Unit
 }
 
 case class MsgMonitor(val heartbeatMs:Long, val transmissionDelayMs:Long) {
@@ -44,6 +47,7 @@ case class MsgMonitor(val heartbeatMs:Long, val transmissionDelayMs:Long) {
   */
 class SfSessionTimeHandler(heartbeatMs:Long,
                            val sessionTimeoutHandler:SessionTimeoutHandler,
+                           val sessActor: ActorRef[SfSessionActorCommand],
                            transmissionDelayMs:Long = 250) extends SfHeartbeatListener {
   // If receive nothing for heartbeat+20 then send a test message
   private val receivedMonitor = MsgMonitor((heartbeatMs.toDouble*1.2).toInt, transmissionDelayMs)
@@ -57,15 +61,15 @@ class SfSessionTimeHandler(heartbeatMs:Long,
     sendMonitor.recordActivity(System.currentTimeMillis())
   }
 
-  override def heartBeatFired: Unit = {
+  override def heartBeatFired(): Unit = {
     val nowMs = System.currentTimeMillis()
 
     sendMonitor.isNewElapsedCount(nowMs) match {
-      case Some(numHeartbeats) =>sessionTimeoutHandler.nothingSentFor(numHeartbeats)
+      case Some(numHeartbeats) =>sessionTimeoutHandler.nothingSentFor(numHeartbeats, sessActor)
       case None =>
     }
     receivedMonitor.isNewElapsedCount(nowMs) match {
-      case Some(numHeartbeats) =>sessionTimeoutHandler.nothingReceivedFor(numHeartbeats)
+      case Some(numHeartbeats) =>sessionTimeoutHandler.nothingReceivedFor(numHeartbeats, sessActor)
       case None =>
     }
   }

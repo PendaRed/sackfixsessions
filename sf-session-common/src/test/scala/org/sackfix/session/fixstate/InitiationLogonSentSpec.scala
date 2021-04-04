@@ -1,12 +1,12 @@
 package org.sackfix.session.fixstate
 
 import org.sackfix.session.SfSessionStub
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class InitiationLogonSentSpec extends FlatSpec {
+class InitiationLogonSentSpec extends AnyFlatSpec {
   behavior of "InitiationLogonSent"
   val session = new SfSessionStub
 

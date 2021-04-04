@@ -3,12 +3,12 @@ package org.sackfix.session.filebasedstore
 import java.time.{LocalDateTime, ZonedDateTime}
 
 import org.sackfix.session.{SfSequencePair, SfSessionId, SfSessionStub}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class SfFileMessageSessionIdStoreSpec  extends FlatSpec {
+class SfFileMessageSessionIdStoreSpec  extends AnyFlatSpec {
 
   behavior of "SfFileMessageStore"
 

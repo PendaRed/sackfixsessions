@@ -1,10 +1,8 @@
 package org.sackfix.boostrap
 
-import java.time.LocalDateTime
-
-import akka.actor.ActorRef
+import akka.actor.typed.ActorRef
 import org.sackfix.common.message.SfMessage
-import org.sackfix.common.validated.fields.SfFixMessageBody
+import org.sackfix.session.SfSessionActor.SfSessionActorCommand
 import org.sackfix.session.SfSessionId
 
 /**
@@ -18,8 +16,6 @@ import org.sackfix.session.SfSessionId
   * to the actor.  You can look after your own ActorRef and lifecycle.
   */
 trait SfBusinessFixInfo {
-  val tstamp = LocalDateTime.now()
-
   def sessionId: SfSessionId
 }
 
@@ -28,7 +24,7 @@ trait SfBusinessFixInfo {
   * @param sfSessionActor If you want to send the session a message you use ! BusinessFixMsgOut()
   * @param message        Has .header, .body and tail
   */
-case class BusinessFixMessage(sessionId: SfSessionId, sfSessionActor: ActorRef, message: SfMessage) extends SfBusinessFixInfo
+case class BusinessFixMessage(sessionId: SfSessionId, sfSessionActor: ActorRef[SfSessionActorCommand], message: SfMessage) extends SfBusinessFixInfo
 
 /**
   * The other side rejected a message - either a session level or a business level message.  You should
@@ -37,18 +33,18 @@ case class BusinessFixMessage(sessionId: SfSessionId, sfSessionActor: ActorRef, 
   * @param sessionId      Holds details of the comp id's and so on
   * @param sfSessionActor If you want to send the session a message you use ! BusinessFixMsgOut()
   * @param message        - the body will be a reject ie
-  *                   message.body match{
+  *                       message.body match{
   *                       case rj:RejectMessage =>
   *                       }
   */
-case class BusinessRejectMessage(sessionId: SfSessionId, sfSessionActor: ActorRef, message: SfMessage) extends SfBusinessFixInfo
+case class BusinessRejectMessage(sessionId: SfSessionId, sfSessionActor: ActorRef[SfSessionActorCommand], message: SfMessage) extends SfBusinessFixInfo
 
 
 /**
   * @param sessionId      Holds details of the comp id's and so on
   * @param sfSessionActor If you want to send the session a message you use ! BusinessFixMsgOut()
   */
-case class FixSessionOpen(sessionId: SfSessionId, sfSessionActor: ActorRef) extends SfBusinessFixInfo
+case class FixSessionOpen(sessionId: SfSessionId, sfSessionActor: ActorRef[SfSessionActorCommand]) extends SfBusinessFixInfo
 
 /**
   * You may receive this more than once during close down.
@@ -58,23 +54,21 @@ case class FixSessionOpen(sessionId: SfSessionId, sfSessionActor: ActorRef) exte
 case class FixSessionClosed(sessionId: SfSessionId) extends SfBusinessFixInfo
 
 /**
-  * The business layer uses this message to send a fix message out to the counterparty.  It should be sent
-  * as an akka message to the sfSessionActor.
+  * The business layer uses BusinessFixMsgout message to send a fix message out to the counterparty.  It should be sent
+  * as an akka message to the sfSessionActor
   *
   * With SackFix all TCP is ACK'ed, so you will recieve back the BusinessFixMsgOutAck when the message
   * has been sent.
   *
   * @param msgBody The message to be sent out
   */
-case class BusinessFixMsgOut(msgBody: SfFixMessageBody, correlationId: String)
-
-case class BusinessFixMsgOutAck(sessionId: SfSessionId, sfSessionActor: ActorRef, correlationId: String) extends SfBusinessFixInfo
+case class BusinessFixMsgOutAck(sessionId: SfSessionId, sfSessionActor: ActorRef[SfSessionActorCommand], correlationId: String) extends SfBusinessFixInfo
 
 /**
-  * You can send this to the session Actor to tell it to close the session
+  * You can send BusinessSaysLogoutNow to the session Actor to tell it to close the session
+  *
   * @param reason This will be sent in the logout message to the counterparty, so make it polite!
   */
-case class BusinessSaysLogoutNow(reason:String)
 
 trait BusinessCommsHandler {
   def handleFix(msg: SfBusinessFixInfo)

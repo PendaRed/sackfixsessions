@@ -1,7 +1,8 @@
 package org.sackfix.session
 
-import akka.actor.ActorRef
+import akka.actor.typed.ActorRef
 import org.sackfix.common.message.SfMessageHeader
+import org.sackfix.session.SfSessionActor.SfSessionActorCommand
 import org.slf4j.LoggerFactory
 
 /**
@@ -26,7 +27,7 @@ class SfSessionLookup() {
     * @param socketConnnectHost Useful for debug
     * @return The reply or None
     */
-  private def validateSessionDetails(incomingHeader: SfMessageHeader, socketConnnectHost: String): Option[ActorRef] = {
+  private def validateSessionDetails(incomingHeader: SfMessageHeader, socketConnnectHost: String): Option[ActorRef[SfSessionActorCommand]] = {
     val sessionId = SfSessionId(incomingHeader)
     // create a session in the cache if we can
     sessionCache.get(sessionId) orElse {
@@ -35,13 +36,13 @@ class SfSessionLookup() {
     }
   }
 
-  def findSession(header: SfMessageHeader): Option[ActorRef] = {
+  def findSession(header: SfMessageHeader): Option[ActorRef[SfSessionActorCommand]] = {
     val sessionId = SfSessionId(header)
     sessionCache.get(sessionId)
   }
-  def findSession(sessionId: SfSessionId): Option[ActorRef] = sessionCache.get(sessionId)
+  def findSession(sessionId: SfSessionId): Option[ActorRef[SfSessionActorCommand]] = sessionCache.get(sessionId)
 
-  def getAllSessionActors : Iterable[ActorRef] = {
+  def getAllSessionActors : Iterable[ActorRef[SfSessionActorCommand]] = {
     sessionCache.cache.values
   }
 }

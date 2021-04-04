@@ -3,12 +3,12 @@ package org.sackfix.session.fixstate
 import org.sackfix.field.TextField
 import org.sackfix.fix44.LogoutMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class InitiateLogoutProcessSpec extends FlatSpec {
+class InitiateLogoutProcessSpec extends AnyFlatSpec {
   behavior of "InitiateLogoutProcess"
 
   it should "fire off a logon message with known cause" in {

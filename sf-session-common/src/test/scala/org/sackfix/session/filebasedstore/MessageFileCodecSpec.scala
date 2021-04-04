@@ -1,13 +1,13 @@
 package org.sackfix.session.filebasedstore
 
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.util.{Failure, Success}
 
 /**
   * Created by Jonathan during December 2016.
   */
-class MessageFileCodecSpec  extends FlatSpec {
+class MessageFileCodecSpec  extends AnyFlatSpec {
 
   behavior of "MessageFileCodec"
 

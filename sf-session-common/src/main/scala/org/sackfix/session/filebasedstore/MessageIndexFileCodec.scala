@@ -1,7 +1,6 @@
 package org.sackfix.session.filebasedstore
 
-import java.io.{DataInputStream, File, FileInputStream, RandomAccessFile}
-
+import java.io.{DataInputStream, FileInputStream, RandomAccessFile}
 import scala.annotation.tailrec
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Success, Try}
@@ -30,7 +29,7 @@ object MessageIndexFileCodec {
     Try(using(new FileInputStream(filename))(readIndexFileStream)).flatten
   }
 
-  def deleteData(fileName:String)  = {
+  def deleteData(fileName:String): AnyVal = {
     SfFileUtils.deleteFile(fileName)
   }
 
@@ -38,11 +37,10 @@ object MessageIndexFileCodec {
     def writeRandomAccessFile(data: List[(Int, Long, Int)])(raf: RandomAccessFile): Try[Unit] = {
       Try {
         raf.seek(0)
-        data.foreach { case (seqNo, pos, len) => {
+        data.foreach { case (seqNo, pos, len) =>
           raf.writeInt(seqNo)
           raf.writeLong(pos)
           raf.writeInt(len)
-        }
         }
       }
     }
@@ -57,7 +55,7 @@ object MessageIndexFileCodec {
   def closeIndex(fileToClose: Option[RandomAccessFile]): Try[Unit] = {
     fileToClose match {
       case None => Success()
-      case Some(raf) =>Try(raf.close)
+      case Some(raf) =>Try(raf.close())
     }
   }
 

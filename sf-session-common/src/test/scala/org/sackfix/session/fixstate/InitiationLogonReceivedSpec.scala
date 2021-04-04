@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.LogonMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class InitiationLogonReceivedSpec extends FlatSpec {
+class InitiationLogonReceivedSpec extends AnyFlatSpec {
   behavior of "InitiationLogonReceived"
 
   it should "fire off a logon message" in {

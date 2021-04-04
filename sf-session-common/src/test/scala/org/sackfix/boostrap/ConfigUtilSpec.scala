@@ -1,13 +1,13 @@
 package org.sackfix.boostrap
 
 import java.time.format.DateTimeParseException
+import org.scalatest.flatspec.AnyFlatSpec
 
-import org.scalatest.FlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class ConfigUtilSpec extends FlatSpec {
+class ConfigUtilSpec extends AnyFlatSpec {
   behavior of "ConfigUtil"
 
   it should "parse correctly" in {

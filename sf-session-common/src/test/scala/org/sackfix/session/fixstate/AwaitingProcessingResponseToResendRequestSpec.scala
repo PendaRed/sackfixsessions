@@ -2,14 +2,14 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.NewOrderSingleMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during 2017.
   */
-class AwaitingProcessingResponseToResendRequestSpec extends FlatSpec {
+class AwaitingProcessingResponseToResendRequestSpec extends AnyFlatSpec {
   behavior of "AwaitingProcessingResponseToResendRequest"
   val session = new SfSessionStub
 

@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.ResendRequestMessage
 import org.sackfix.session.{SfAction, SfActionSendMessageToFix, SfSessionFixMessageEvent, SfSessionStub}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class ReceiveMsgSeqNumTooHighSpec extends FlatSpec {
+class ReceiveMsgSeqNumTooHighSpec extends AnyFlatSpec {
   behavior of "ReceiveMsgSeqNumTooHigh"
 
   it should "Generate a resent action back to the session" in {

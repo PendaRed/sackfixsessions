@@ -1,11 +1,11 @@
 package org.sackfix.codec
 
-import akka.actor.ActorRef
+import akka.actor.typed.ActorRef
 import org.sackfix.common.message._
 import org.sackfix.common.validated.fields.SfFixMessageDecoder
 import org.sackfix.field._
 import org.sackfix.fix44.SfMessageFactory
-import org.sackfix.latency.LatencyActor.{RecordLatencyMsgIn, RecordMsgLatencyMsgIn}
+import org.sackfix.latency.LatencyActor.{LatencyCommand, RecordMsgLatencyMsgIn}
 import org.sackfix.session.SfSessionId
 
 /**
@@ -13,14 +13,14 @@ import org.sackfix.session.SfSessionId
   */
 object SfDecodeTuplesToMsg {
 
-  def decodeFromStr(fixStr: String, rejectMessageCallback: (DecodingFailedData) => Unit,
-                    latencyRecorder:Option[ActorRef]=None): Option[SfMessage] = {
+  def decodeFromStr(fixStr: String, rejectMessageCallback: DecodingFailedData => Unit,
+                    latencyRecorder:Option[ActorRef[LatencyCommand]]=None): Option[SfMessage] = {
     var seqNo = 0
     try {
       val fixTuples: Array[(Int, String)] = fixStr.split(SfDecodeBytesToTuples.SOH_CHAR).map((kv: String) => {
         val s = kv.split(SfDecodeBytesToTuples.EQUALS_CHAR)
         if (s.length != 2) {
-          throw new SfBadFixStreamException(s"Badly encoded message - tag=value was [$kv]")
+          throw SfBadFixStreamException(s"Badly encoded message - tag=value was [$kv]")
         }
         // silly and messy, but for erros the reject is supposed to send the seq no
         val tagId = s(0).toInt
@@ -46,8 +46,8 @@ object SfDecodeTuplesToMsg {
     * @return the decoded message which you should now process, or None (after calling the failure callback)
     */
   def decode(fixTuples: Array[Tuple2[Int, String]],rejectDetails:Option[FixStrDecodeRejectDetails],
-             rejectMessageCallback: (DecodingFailedData) => Unit,
-             latencyRecorder:Option[ActorRef]=None): Option[SfMessage] = {
+             rejectMessageCallback: DecodingFailedData => Unit,
+             latencyRecorder:Option[ActorRef[LatencyCommand]]=None): Option[SfMessage] = {
     convertAMessage(fixTuples, rejectDetails, latencyRecorder) match {
       case (msg: Some[SfMessage], None) =>
         msg
@@ -107,7 +107,7 @@ object SfDecodeTuplesToMsg {
     *         (None, (Some(header), reason, explanation)) If the decode failed
     *         (None, None) means its garbled and should be ignored.
     */
-  def convertAMessage(msgFlds: Array[Tuple2[Int, String]], rejectDetails:Option[FixStrDecodeRejectDetails],latencyRecorder:Option[ActorRef]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
+  def convertAMessage(msgFlds: Array[Tuple2[Int, String]], rejectDetails:Option[FixStrDecodeRejectDetails],latencyRecorder:Option[ActorRef[LatencyCommand]]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
     rejectDetails match {
       case Some(reason) =>
         // This means the fix string decoder found an error, but it was one the spec wanted passing back as a reject.
@@ -150,7 +150,7 @@ object SfDecodeTuplesToMsg {
   }
 
   def convertAMessageWithDecoder(msgFlds: Array[Tuple2[Int, String]],
-                                 latencyRecorder:Option[ActorRef]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
+                                 latencyRecorder:Option[ActorRef[LatencyCommand]]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
     val headerDecodeStartNanos = System.nanoTime()
     SfMessageHeader.decode(msgFlds) match {
       case Some(header) =>
@@ -181,7 +181,7 @@ object SfDecodeTuplesToMsg {
     */
   def decodeTheMessage(msgFlds: Array[Tuple2[Int, String]], header: SfMessageHeader,
                        bodyDecoder: SfFixMessageDecoder,
-                       latencyRecorder:Option[ActorRef]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
+                       latencyRecorder:Option[ActorRef[LatencyCommand]]=None): (Option[SfMessage], Option[DecodingFailedData]) = {
     try {
       val startTStampNanos = System.nanoTime()
 

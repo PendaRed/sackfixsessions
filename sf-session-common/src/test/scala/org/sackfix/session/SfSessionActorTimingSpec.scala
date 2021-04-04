@@ -1,17 +1,17 @@
 package org.sackfix.session
 
-import java.time.format.{DateTimeFormatter, DateTimeParseException}
+import akka.actor.testkit.typed.scaladsl.ActorTestKit
+import akka.actor.typed.scaladsl.adapter.TypedActorRefOps
 
-import akka.actor.{ActorRef, ActorSystem}
-import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.{actor => classic}
 import org.sackfix.common.message.SfMessage
-import org.sackfix.common.validated.fields.SfFixMessageBody
-import org.sackfix.field._
-import org.sackfix.fix44.{ExecutionReportMessage, InstrumentComponent}
 import org.sackfix.session.SfSessionActor._
 import org.sackfix.session.fixstate.MessageFixtures
-import org.sackfix.session.heartbeat.SfHeartbeaterActor.AddListenerMsgIn
+import org.sackfix.session.heartbeat.SfHeartbeaterActor.{AddListenerMsgIn, HbCommand}
 import org.scalatest._
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
@@ -20,12 +20,11 @@ import scala.concurrent.duration._
 /**
   * Created by Jonathan during 2016.
   */
-class SfSessionActorTimingSpec extends TestKit(ActorSystem("MySpec")) with ImplicitSender
-  with WordSpecLike with Matchers with BeforeAndAfterAll  {
+class SfSessionActorTimingSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll  {
 
-  override def afterAll {
-    TestKit.shutdownActorSystem(system)
-  }
+  val testKit = ActorTestKit()
+
+  override def afterAll(): Unit = testKit.shutdownTestKit()
 
   "A SfSessionActor" should {
 
@@ -36,21 +35,21 @@ class SfSessionActorTimingSpec extends TestKit(ActorSystem("MySpec")) with Impli
         msgs += MessageFixtures.newOrderSingleNowTime(2+testNum, "ClientOrderId")
       }
       for (tstNum <- 0 to 3) {
-        val probe1 = TestProbe()
-        val tcpProbe = TestProbe()
+        val probe1 = testKit.createTestProbe[HbCommand]
+        val tcpProbeRef = testKit.createTestProbe().ref.toClassic
         val store = new SfMessageStoreStub()
         val sessionId = SfSessionId(beginString = "Fix4.2",
           senderCompId = "TargFGW",
           targetCompId = "SendFGW")
 
-        val sessionActor = system.actorOf(SfSessionActor.props(SfAcceptor, Some(store), sessionId, 20, probe1.ref, None, new SessionOpenTodayStoreStub))
-        val sessOutRouter = new SfSessOutEventRouterTimingStub(sessionActor, tcpProbe.ref)
+        val sessionActor = testKit.spawn(SfSessionActor(SfAcceptor, Some(store), sessionId, 20, probe1.ref, None, new SessionOpenTodayStoreStub))
+        val sessOutRouter = new SfSessOutEventRouterTimingStub(sessionActor, tcpProbeRef)
 
         val logonMessage = MessageFixtures.Logon
         sessionActor ! ConnectionEstablishedMsgIn(sessOutRouter, Some(logonMessage), None)
 
         // so, it should register with the heartbeater
-        val hbListener = probe1.expectMsgType[AddListenerMsgIn](1200 millis)
+        val hbListener = probe1.expectMessageType[AddListenerMsgIn](1200.millis)
 
         var testNum=0
         msgs.foldLeft(0)((testNum, msg: SfMessage) => {
@@ -69,7 +68,7 @@ class SfSessionActorTimingSpec extends TestKit(ActorSystem("MySpec")) with Impli
       }
     }
   }
-class SfSessOutEventRouterTimingStub(override val sfSessionActor: ActorRef, override val tcpActor:ActorRef) extends SfSessOutEventRouter {
+class SfSessOutEventRouterTimingStub(override val sfSessionActor: ActorRef[SfSessionActorCommand], override val tcpActor:classic.ActorRef) extends SfSessOutEventRouter {
   val remoteHostDebugStr ="PerfTest"
   var msgsToBusiness:Int=0
   var actualMessages = 0
@@ -91,7 +90,7 @@ class SfSessOutEventRouterTimingStub(override val sfSessionActor: ActorRef, over
     }
     stopTimerNanos - startTimerNanos
   }
-  override def confirmCorrectTcpActor(checkTcpActor: ActorRef):Boolean = true
+  override def confirmCorrectTcpActor(checkTcpActor: classic.ActorRef):Boolean = true
   override def logOutgoingFixMsg(fixMsgStr: String) = fixMsgsCnt += 1
   override def informBusinessLayerSessionIsOpen = msgsToBusiness =0
   override def informBusinessLayerSessionIsClosed = {}
@@ -103,7 +102,7 @@ class SfSessOutEventRouterTimingStub(override val sfSessionActor: ActorRef, over
     msgsToBusiness+=1
   }
   override def informBusinessMessageAcked(correlationId:String) = {}
-  override def closeThisFixSessionsSocket = {}
+  override def closeThisFixSessionsSocket() = {}
   override def informBusinessRejectArrived(fixMsg: SfMessage): Unit = {}
 }
 }

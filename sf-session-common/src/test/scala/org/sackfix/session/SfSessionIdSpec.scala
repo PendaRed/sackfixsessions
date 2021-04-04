@@ -2,12 +2,12 @@ package org.sackfix.session
 
 import org.sackfix.common.message.SfMessageHeader
 import org.sackfix.field._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2016.
   */
-class SfSessionIdSpec  extends FlatSpec {
+class SfSessionIdSpec  extends AnyFlatSpec {
   behavior of "SfSessionId"
 
   it should "create from a message header" in {

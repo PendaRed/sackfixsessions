@@ -3,12 +3,12 @@ package org.sackfix.session.fixstate
 import org.sackfix.field.TestReqIDField
 import org.sackfix.fix44.HeartbeatMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class HandleTestRequestSpec extends FlatSpec {
+class HandleTestRequestSpec extends AnyFlatSpec {
   behavior of "HandleTestRequest"
   val session = new SfSessionStub
 

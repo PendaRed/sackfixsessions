@@ -9,12 +9,12 @@ import org.slf4j.LoggerFactory
   * Created by Jonathan during 2017.
   */
 trait SfSessionSchedulListener {
-  def wakeUp
-  def sleepNow
+  def wakeUp()
+  def sleepNow()
 }
 
-case class SfSessionScheduler(val startTime:LocalTime, val endTime:LocalTime,
-                              val listener:SfSessionSchedulListener)  extends SfHeartbeatListener {
+case class SfSessionScheduler( startTime:LocalTime,  endTime:LocalTime,
+                               listener:SfSessionSchedulListener)  extends SfHeartbeatListener {
   private val logger = LoggerFactory.getLogger(SfSessionScheduler.getClass)
   logger.info(s"Session times:  start:$startTime, ends $endTime")
 
@@ -26,13 +26,13 @@ case class SfSessionScheduler(val startTime:LocalTime, val endTime:LocalTime,
 
     if (now.isAfter(startTime) && now.isBefore(endTime)) {
       if (!sentWakeUp) {
-         listener.wakeUp
+         listener.wakeUp()
         sentWakeUp = true
         sentSleepNow = false
       }
     } else {
       if (!sentSleepNow) {
-        listener.sleepNow
+        listener.sleepNow()
         sentSleepNow = true
         sentWakeUp = false
       }

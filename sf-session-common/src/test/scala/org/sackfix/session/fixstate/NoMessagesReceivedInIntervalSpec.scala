@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.TestRequestMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class NoMessagesReceivedInIntervalSpec extends FlatSpec {
+class NoMessagesReceivedInIntervalSpec extends AnyFlatSpec {
   behavior of "NoMessagesReceivedInInterval"
   val session = new SfSessionStub
 

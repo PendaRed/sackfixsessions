@@ -1,13 +1,12 @@
 package org.sackfix.session.filebasedstore
 
-import java.io._
-import java.time.{LocalDateTime, ZonedDateTime}
-import java.time.format.DateTimeFormatter
-
-import org.sackfix.session.{SfSequencePair, SfSession, SfSessionId}
+import org.sackfix.session.{SfSequencePair, SfSessionId}
 import org.slf4j.LoggerFactory
 
-import scala.util.{Failure, Success, Try}
+import java.io._
+import java.time.format.DateTimeFormatter
+import java.time.{LocalDateTime, ZonedDateTime}
+import scala.util.{Failure, Success}
 
 /**
   * Created by Jonathan during 2017.

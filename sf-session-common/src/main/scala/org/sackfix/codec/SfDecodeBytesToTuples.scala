@@ -1,7 +1,5 @@
 package org.sackfix.codec
 
-import java.time.LocalDateTime
-
 import akka.util.ByteString
 import org.sackfix.field._
 import org.slf4j.LoggerFactory
@@ -9,10 +7,10 @@ import org.slf4j.LoggerFactory
 import scala.collection.mutable.ArrayBuffer
 
 object SfDecodeBytesToTuples {
-  val SOH_BYTE = 1.toByte
-  val SOH_CHAR = 1.toChar
-  val EQUALS_BYTE = '='.toByte
-  val EQUALS_CHAR = '='.toChar
+  val SOH_BYTE: Byte = 1.toByte
+  val SOH_CHAR: Char = 1.toChar
+  val EQUALS_BYTE: Byte = '='.toByte
+  val EQUALS_CHAR: Char = '='.toChar
 }
 
 /**
@@ -27,9 +25,10 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
   // Use SLF4J only logging in non actor classes.  Config will hook it into Akka logging
   // which in turn is hooked into Logback logging.
   private val log = LoggerFactory.getLogger(SfDecodeBytesToTuples.getClass)
-  private val validator: Option[ValidateLenAndCheckSum] = validateLenAndChecksum match {
-    case true => Some(new ValidateLenAndCheckSum)
-    case _ => None
+  private val validator: Option[ValidateLenAndCheckSum] = if (validateLenAndChecksum) {
+    Some(new ValidateLenAndCheckSum)
+  } else {
+    None
   }
   private var nextMsg = ArrayBuffer[Tuple2[Int, String]]()
   private var thisMsgLenSoFar : Int = 0
@@ -61,7 +60,7 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
   }
 
   private[codec] def decodeToArray(newFields: ByteString, callback: (Array[Tuple2[Int, String]], Option[FixStrDecodeRejectDetails], DecoderTimestamps) => Unit,
-                                   rejectAsGarbledCallback: (String, DecoderTimestamps) => Unit) = {
+                                   rejectAsGarbledCallback: (String, DecoderTimestamps) => Unit): Unit = {
     val allBytes = {
       remainderFromPrev match {
         case None => newFields
@@ -122,13 +121,13 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
       } catch {
         case ex: NumberFormatException =>
           nonNumericTagId = true
-          if (badTags.length > 0) badTags.append(",")
+          if (badTags.nonEmpty) badTags.append(",")
           badTags.append(tagStr)
       }
     }
 
 
-    def isHeaderOrderBad(): Boolean = {
+    def isHeaderOrderBad: Boolean = {
       // Test spec section 2.t says
       // t. BeginString, BodyLength, and MsgType are not the first three fields of message.
       nextMsg.size<3 ||
@@ -142,7 +141,7 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
       * received and compare to the mesage fields.
       * Then callback or reject it
       */
-    def handleCheckSumField(checkSumFromMsgStr: String) = {
+    def handleCheckSumField(checkSumFromMsgStr: String): Unit = {
       validator.foreach(_.determineMessageLen(thisMsgLenSoFar+lastStartOfTagIdPos))
       val tstampInfo = DecoderTimestamps(allBytes, pos+1,msgSeqNum, firstByteReceiveTimeNanos, System.nanoTime())
       if (nonNumericTagId) {
@@ -154,8 +153,8 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
             tstampInfo)
         else {
           val checkSumFromMsg = checkSumFromMsgStr.toInt
-          if (isHeaderOrderBad()) {
-            rejectAsGarbledCallback(s"SeqNum=[$msgSeqNum] Badly encoded message - expected first 3 fields to be ${BeginStringField.TagId},${BodyLengthField.TagId}, ${MsgTypeField.TagId}, but got ${if (nextMsg.size>0) nextMsg(0)._1 else "missing"}, ${if (nextMsg.size>1) nextMsg(1)._1 else "missing"}, ${if (nextMsg.size>2) nextMsg(2)._1 else "missing"}",
+          if (isHeaderOrderBad) {
+            rejectAsGarbledCallback(s"SeqNum=[$msgSeqNum] Badly encoded message - expected first 3 fields to be ${BeginStringField.TagId},${BodyLengthField.TagId}, ${MsgTypeField.TagId}, but got ${if (nextMsg.nonEmpty) nextMsg(0)._1 else "missing"}, ${if (nextMsg.size>1) nextMsg(1)._1 else "missing"}, ${if (nextMsg.size>2) nextMsg(2)._1 else "missing"}",
               tstampInfo)
           } else {
             validator match {
@@ -170,7 +169,7 @@ class SfDecodeBytesToTuples(val validateLenAndChecksum: Boolean = true) {
           }
         }
       }
-      validator.foreach(_.reset)
+      validator.foreach(_.reset())
       nonNumericTagId = false
       badTags.clear()
       nextMsg = ArrayBuffer[Tuple2[Int, String]]()
@@ -190,7 +189,7 @@ class ValidateLenAndCheckSum {
   private var bodyLenFromMsg: Int = 0
   private var posAfterBodyLenField:Int = 0
 
-  def reset = {
+  def reset(): Unit = {
     bodyLen = 0
     bodyLenFromMsg = 0
     posAfterBodyLenField =0
@@ -211,7 +210,7 @@ class ValidateLenAndCheckSum {
     this.posAfterBodyLenField = posAfterBodyLenField
   }
 
-  def determineMessageLen(lenWithoutChecksum:Int) = {
+  def determineMessageLen(lenWithoutChecksum:Int): Unit = {
     bodyLen = lenWithoutChecksum - posAfterBodyLenField
   }
 }

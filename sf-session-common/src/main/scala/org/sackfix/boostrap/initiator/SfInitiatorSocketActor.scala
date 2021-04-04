@@ -1,9 +1,14 @@
 package org.sackfix.boostrap.initiator
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
+import akka.actor.typed.scaladsl.adapter.{TypedActorContextOps, TypedActorRefOps}
+import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors, TimerScheduler}
+import akka.actor.typed.{ActorRef, Behavior, Signal, Terminated}
 import akka.io.{IO, Tcp}
+import akka.{actor => classic}
 import org.sackfix.boostrap.BusinessCommsHandler
 import org.sackfix.boostrap.initiator.SfInitiatorSocketActor.{InitiatorCloseNowMsgIn, InitiatorReconnectMsgIn, InitiatorStartTimeMsgIn}
+import org.sackfix.latency.LatencyActor.LatencyCommand
+import org.sackfix.session.SfSessionActor.SfSessionActorCommand
 import org.sackfix.session.{SfInitiator, SfSessionId, SfSessionLookup}
 import org.sackfix.socket.SfSocketHandlerActor
 import org.sackfix.socket.SfSocketHandlerActor.{CloseSocketMsgIn, InitiatorSocketOpenMsgIn}
@@ -13,22 +18,29 @@ import scala.concurrent.duration._
 /**
   * Initially cut and paste from http://doc.akka.io/docs/akka/current/scala/io-tcp.html
   * Created by Jonathan during 2016.
+  *
+  * Note that in the typed to classic interop there is NO sender in scope to when sent
+  * to TCP actors (ie classic ones), do not use !, but use .tell(xx, context.self.toClassic)
   */
 object SfInitiatorSocketActor {
-  def props(sessionLookup: SfSessionLookup,
+  def apply(sessionLookup: SfSessionLookup,
             sessionId: SfSessionId,
-            sessionActor: ActorRef,
+            sessionActor: ActorRef[SfSessionActorCommand],
             reconnectIntervalSecs: Int,
             socketConfigs: List[SfInitiatorSocketSettings],
             businessComms: BusinessCommsHandler,
-            latencyRecorder: Option[ActorRef]): Props =
-    Props(new SfInitiatorSocketActor(sessionLookup, sessionId, sessionActor, reconnectIntervalSecs, socketConfigs, businessComms, latencyRecorder))
+            latencyRecorder: Option[ActorRef[LatencyCommand]]): Behavior[Tcp.Event] =
+    Behaviors.setup(context =>
+      Behaviors.withTimers { timers => new SfInitiatorSocketActor(context, timers, sessionLookup, sessionId, sessionActor, reconnectIntervalSecs, socketConfigs, businessComms, latencyRecorder)
+      })
 
-  case class InitiatorStartTimeMsgIn(cause: String)
+  trait SfInitiatorSocketCommand extends Tcp.Event
 
-  case class InitiatorCloseNowMsgIn(cause: String)
+  case class InitiatorStartTimeMsgIn(cause: String) extends SfInitiatorSocketCommand
 
-  case object InitiatorReconnectMsgIn
+  case class InitiatorCloseNowMsgIn(cause: String) extends SfInitiatorSocketCommand
+
+  case object InitiatorReconnectMsgIn extends SfInitiatorSocketCommand
 
 }
 
@@ -38,25 +50,25 @@ object SfInitiatorSocketActor {
   *                      has to have the correct header fields, and if it doesnt then it should not
   *                      be able to use the session.
   */
-class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
+class SfInitiatorSocketActor(context: ActorContext[Tcp.Event],
+                             timers: TimerScheduler[Tcp.Event],
+                             val sessionLookup: SfSessionLookup,
                              val sessionId: SfSessionId,
-                             val sessionActor: ActorRef,
+                             val sessionActor: ActorRef[SfSessionActorCommand],
                              val reconnectIntervalSecs: Int,
                              val socketConfigs: List[SfInitiatorSocketSettings],
                              val businessComms: BusinessCommsHandler,
-                             val latencyRecorder: Option[ActorRef]) extends Actor with ActorLogging {
+                             val latencyRecorder: Option[ActorRef[LatencyCommand]]) extends AbstractBehavior[Tcp.Event](context) {
 
   import Tcp._
 
-  // These two are needed to schedule the reconnect
-  import context.{dispatcher, system}
-
   if (socketConfigs.length < 1) {
-    log.error("No socket configurations given so initiator config is in error")
-    context stop self
+    context.log.error("No socket configurations given so initiator config is in error")
+    context stop context.self
   }
 
-  var handler: Option[ActorRef] = None
+  // Note tcp only exists in classic actors, there is no types equivalent
+  var handler: Option[ActorRef[Tcp.Event]] = None
   private var socketDescription = ""
   private var roundRobinSocketNumber = 0
   private var failedConnectionCounter = 0
@@ -72,24 +84,25 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
     ret
   }
 
-  def startSession() = {
+  def startSession(): Unit = {
+
     handler match {
       case None =>
         getSocketDetails match {
           case None => // simply impossible!
           case Some(socketDet) =>
-            log.info(s"Attempting to connect to Fix Server at [$socketDescription]")
-            IO(Tcp) ! Connect(socketDet) // implicit convert
+            context.log.info(s"Attempting to connect to Fix Server at [$socketDescription]")
+            IO(Tcp)(context.system.classicSystem).tell(Connect(socketDet),context.self.toClassic) // no typed equivalent for tcp and io.
         }
       case Some(c) =>
-        log.info(s"startSession call ignored, already open")
+        context.log.info(s"startSession call ignored, already open")
     }
   }
 
-  def endSession = {
+  def endSession() = {
     handler match {
       case Some(h) =>
-        log.info(s"Closing socket to:")
+        context.log.info(s"Closing socket to:")
         h ! CloseSocketMsgIn
       // it will terminate itself when the socket closes, and the death watch
       // will catch it and set handler to None
@@ -97,39 +110,51 @@ class SfInitiatorSocketActor(val sessionLookup: SfSessionLookup,
     }
   }
 
-  def receive = {
-    case CommandFailed(_: Connect) =>
-      failedConnectionCounter += 1
-      log.error(s"Failed to connect to Fix Server [$failedConnectionCounter] times at [$socketDescription], will reconnect in $reconnectIntervalSecs seconds")
-      system.scheduler.scheduleOnce(reconnectIntervalSecs seconds, self, InitiatorReconnectMsgIn)
-    case c@Connected(remote, local) =>
-      val debugHostName = remote.getHostName + ":" + remote.getPort
-      log.info(s"Outgoing connnection to [${debugHostName}] established")
-      val connection = sender
-      val handlerActor = context.actorOf(SfSocketHandlerActor.props(SfInitiator, sender,
-        sessionLookup, debugHostName, businessComms, latencyRecorder),
-        name = s"$debugHostName-SfSocketHandlerActor")
+  override def onMessage(msg: Tcp.Event): Behavior[Tcp.Event] = {
+    msg match {
+      case CommandFailed(_: Connect) =>
+        failedConnectionCounter += 1
+        context.log.error(s"Failed to connect to Fix Server [$failedConnectionCounter] times at [$socketDescription], will reconnect in $reconnectIntervalSecs seconds")
+        timers.startSingleTimer(InitiatorReconnectMsgIn, reconnectIntervalSecs.seconds)
+        Behaviors.same
+      case c@Connected(remote, local) =>
+        val debugHostName = remote.getHostName + ":" + remote.getPort
+        context.log.info(s"Outgoing connnection to [${debugHostName}] established")
+        val sender = context.toClassic.sender()
+        val handlerActor = context.spawn(SfSocketHandlerActor(SfInitiator, sender,
+          sessionLookup, debugHostName, businessComms, latencyRecorder),
+          name = s"$debugHostName-SfSocketHandlerActor")
 
-      // sign death pact: this Actor terminates when the connection breaks
-      context watch handlerActor
+        // sign death pact: this Actor terminates when the connection breaks
+        context.watch(handlerActor)
 
-      sender ! Register(handlerActor)
-      handler = Some(handlerActor)
+        sender.tell(Register(handlerActor.toClassic),context.self.toClassic)
+        handler = Some(handlerActor)
 
-      handlerActor ! InitiatorSocketOpenMsgIn(sessionId, sessionActor)
+        handlerActor ! InitiatorSocketOpenMsgIn(sessionId, sessionActor)
+        Behaviors.same
+      case InitiatorReconnectMsgIn =>
+        context.log.info(s"Session Reconnect message arrived")
+        startSession()
+        Behaviors.same
+      case InitiatorStartTimeMsgIn(cause: String) =>
+        context.log.info(s"SessionStart called: $cause")
+        startSession()
+        Behaviors.same
+      case InitiatorCloseNowMsgIn(cause: String) =>
+        context.log.info(s"SessionClose called: $cause")
+        endSession()
+        Behaviors.same
+      case actorMsg@_ =>
+        context.log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
+        Behaviors.same
+    }
+  }
+  override def onSignal: PartialFunction[Signal, Behavior[Tcp.Event]] = {
     case Terminated(handlerActor) =>
       // I only watch the socket handler, and if that is dead then the socket has to be closed
       handler = None
-    case InitiatorReconnectMsgIn =>
-      log.info(s"Session Reconnect message arrived")
-      startSession()
-    case InitiatorStartTimeMsgIn(cause: String) =>
-      log.info(s"SessionStart called: $cause")
-      startSession()
-    case InitiatorCloseNowMsgIn(cause: String) =>
-      log.info(s"SessionClose called: $cause")
-      endSession
-    case actorMsg@_ =>
-      log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
+      Behaviors.same
   }
+
 }

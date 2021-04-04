@@ -3,14 +3,14 @@ package org.sackfix.codec
 import org.sackfix.common.message.SfMessageHeader
 import org.sackfix.field._
 import org.sackfix.session.SfSessionId
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.ArrayBuffer
 
 /**
   * Created by Jonathan during November 2016.
   */
-class SfDecodeTuplesToMsgSpec extends FlatSpec {
+class SfDecodeTuplesToMsgSpec extends AnyFlatSpec {
   val SOH = 1.toChar
 
   behavior of "SfDecodeTuplesToMsg"
@@ -21,7 +21,7 @@ class SfDecodeTuplesToMsgSpec extends FlatSpec {
               |150=E${SOH}39=E${SOH}55=MSFT${SOH}167=CS${SOH}54=1${SOH}38=15${SOH}40=2${SOH}
               |44=15${SOH}17=execcId${SOH}58=PHLX EQUITY TESTING${SOH}59=0${SOH}47=C${SOH}
               |32=0${SOH}31=0${SOH}151=15${SOH}14=0${SOH}6=0${SOH}10=128${SOH}
-              |""".stripMargin.replace("\n","")
+              |""".stripMargin.replace("\n","").replace("\r", "")
     SfDecodeTuplesToMsg.decodeFromStr(msg, (det:DecodingFailedData)=> {
       // reject handler
       fail("Did not expect failure:"+det.description.value)

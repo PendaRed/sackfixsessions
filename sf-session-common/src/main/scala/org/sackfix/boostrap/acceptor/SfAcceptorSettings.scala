@@ -1,11 +1,12 @@
 package org.sackfix.boostrap.acceptor
 
 import java.time.LocalTime
-
 import akka.actor.{ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import org.sackfix.boostrap.ConfigUtil
 import org.sackfix.common.config.SfConfigUtils
 import com.typesafe.config.Config
+
+import java.net.InetAddress
 
 /**
   * Cribbed from
@@ -14,21 +15,21 @@ import com.typesafe.config.Config
   */
 class SfAcceptorSettingsImp(conf: Config) extends Extension {
 
-  import scala.collection.JavaConversions._
+  import scala.jdk.CollectionConverters._
 
-  val config = conf.getConfig("session")
+  val config: Config = conf.getConfig("session")
 
-  val beginString = config.getString("BeginString")
+  val beginString: String = config.getString("BeginString")
   val senderCompID: String = config.getString("SenderCompID")
-  val socketAcceptAddress = SfConfigUtils.getOptionalInetAddress(config, "SocketAcceptAddress")
-  val socketAcceptPort = config.getInt("SocketAcceptPort")
+  val socketAcceptAddress: Option[InetAddress] = SfConfigUtils.getOptionalInetAddress(config, "SocketAcceptAddress")
+  val socketAcceptPort: Int = config.getInt("SocketAcceptPort")
 
   val startTime: LocalTime = ConfigUtil.decodeTime("StartTime", config.getString("StartTime"))
   val endTime: LocalTime = ConfigUtil.decodeTime("EndTime", config.getString("EndTime"))
 
-  val pathToFileStore = config.getString("PathToFileStore")
+  val pathToFileStore: String = config.getString("PathToFileStore")
 
-  val acceptorConfigs: List[SfAcceptorTargetCompSettings] = config.getConfigList("sessions").map(new SfAcceptorTargetCompSettings(_)).toList
+  val acceptorConfigs: List[SfAcceptorTargetCompSettings] = config.getConfigList("sessions").asScala.map(new SfAcceptorTargetCompSettings(_)).toList
 
   def dumpConfig() :String= {
     val prefix="\n"
@@ -39,7 +40,7 @@ class SfAcceptorSettingsImp(conf: Config) extends Extension {
     s"${prefix}StartTime=[$startTime]"+
     s"${prefix}EndTime=[$endTime]" +
     s"${prefix}PathToFileStore=[$pathToFileStore]"+
-    s"${prefix}sessions={" + acceptorConfigs.map(_.dumpConfig(prefix+"  ")).mkString(s"${prefix}}${prefix}{")+s"${prefix}}"
+    s"${prefix}sessions={" + acceptorConfigs.map(_.dumpConfig(prefix+"  ")).mkString(s"$prefix}$prefix{")+s"$prefix}"
   }
 }
 
@@ -64,7 +65,7 @@ class SfAcceptorTargetCompSettings(config: Config) {
 object SfAcceptorSettings extends ExtensionId[SfAcceptorSettingsImp] with ExtensionIdProvider {
   val SOCKET_ACCEPT_ADDRESS = "SocketAcceptAddress"
 
-  override def lookup = SfAcceptorSettings
+  override def lookup: SfAcceptorSettings.type = SfAcceptorSettings
 
   override def createExtension(system: ExtendedActorSystem) =
     new SfAcceptorSettingsImp(system.settings.config)

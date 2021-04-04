@@ -3,7 +3,7 @@ package org.sackfix.session.fixstate
 import java.awt.TrayIcon.MessageType
 import java.time.LocalDateTime
 
-import org.sackfix.common.message.{SfMessage, SfMessageHeader, SfMessageTrailer}
+import org.sackfix.common.message.{SfFixUtcTime, SfMessage, SfMessageHeader, SfMessageTrailer}
 import org.sackfix.common.validated.fields.SfFixMessageBody
 import org.sackfix.field.{BeginSeqNoField, EndSeqNoField, LeavesQtyField, _}
 import org.sackfix.fix44._
@@ -25,7 +25,7 @@ object MessageFixtures {
       senderCompIDField = SenderCompIDField("SendFGW"),
       targetCompIDField = TargetCompIDField("TargFGW"),
       msgSeqNumField = MsgSeqNumField(seqNo),
-      sendingTimeField = new SendingTimeField(LocalDateTime.now)) //"20170101-10:26:32"))
+      sendingTimeField = new SendingTimeField(SfFixUtcTime.now)) //"20170101-10:26:32"))
   }
   def createHeader(bodyLen:Int, seqNo:Int, msgType:String, sendingTimeField:SendingTimeField = SendingTimeField("20170101-10:26:32")) = {
     new SfMessageHeader(beginStringField = BeginStringField("Fix4.2"),
@@ -42,7 +42,7 @@ object MessageFixtures {
       senderCompIDField = SenderCompIDField("SendFGW"),
       targetCompIDField = TargetCompIDField("TargFGW"),
       msgSeqNumField = MsgSeqNumField(seqNo),
-      sendingTimeField = SendingTimeField(LocalDateTime.now))
+      sendingTimeField = SendingTimeField(SfFixUtcTime.now))
   }
 
   val LogonMessageBody = {
@@ -104,7 +104,7 @@ object MessageFixtures {
     val body = new NewOrderSingleMessage(clOrdIDField = ClOrdIDField(clOrdID),
       instrumentComponent = InstrumentComponent(symbolField = SymbolField("JPG.GB")),
       sideField = SideField(SideField.Buy),
-      transactTimeField = TransactTimeField(LocalDateTime.now),
+      transactTimeField = TransactTimeField(SfFixUtcTime.now),
       orderQtyDataComponent = OrderQtyDataComponent(orderQtyField = Some(OrderQtyField(100))),
       ordTypeField = OrdTypeField(OrdTypeField.Market))
     // Because we are injecting this message into the fix handler, we want body len and

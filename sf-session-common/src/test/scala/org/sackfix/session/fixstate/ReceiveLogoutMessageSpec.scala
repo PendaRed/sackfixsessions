@@ -2,12 +2,12 @@ package org.sackfix.session.fixstate
 
 import org.sackfix.fix44.LogoutMessage
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class ReceiveLogoutMessageSpec extends FlatSpec {
+class ReceiveLogoutMessageSpec extends AnyFlatSpec {
   behavior of "ReceiveLogoutMessage"
 
   it should "Correctly generate the message on state transition" in {

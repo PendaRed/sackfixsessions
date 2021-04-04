@@ -1,15 +1,17 @@
 package org.sackfix.session.heartbeat
 
-import java.time.LocalTime
+import java.time.temporal.ChronoUnit
+import java.time.{LocalDateTime, LocalTime}
 
-import org.sackfix.session.{SessionOpenTodayStore, SfSessionId}
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
+import org.slf4j.LoggerFactory
 
 /**
   * Created by Jonathan during 2017.
   */
-class SfSessionSchedulerSpec extends FlatSpec {
+class SfSessionSchedulerSpec extends AnyFlatSpec {
   behavior of "SfSessionScheduler"
+  private val logger = LoggerFactory.getLogger(SfSessionSchedulerSpec.super.getClass)
 
   it should "Fire wakeUp once as expected" in {
     val now = LocalTime.now
@@ -17,7 +19,7 @@ class SfSessionSchedulerSpec extends FlatSpec {
     val end = now.plusHours(1)
 
     val l = new StubWakeUpListener
-    val sched = new SfSessionScheduler(start, end, l)
+    val sched = SfSessionScheduler(start, end, l)
     sched.heartBeatFired()
     assert(l.wakeUpCallCount == 1)
     assert(l.sleepNowCallCount == 0)
@@ -34,7 +36,7 @@ class SfSessionSchedulerSpec extends FlatSpec {
     val start = now.plusHours(1)
 
     val l = new StubWakeUpListener
-    val sched = new SfSessionScheduler(start, end, l)
+    val sched = SfSessionScheduler(start, end, l)
     sched.heartBeatFired()
     assert(l.wakeUpCallCount == 0)
     assert(l.sleepNowCallCount == 1)
@@ -50,7 +52,7 @@ class SfSessionSchedulerSpec extends FlatSpec {
     val end = now.plusNanos(300 * 1000000)
 
     val l = new StubWakeUpListener
-    val sched = new SfSessionScheduler(start, end, l)
+    val sched = SfSessionScheduler(start, end, l)
     for (i <- 0 until 50) {
       Thread.sleep(300/50)
       sched.heartBeatFired()
@@ -65,6 +67,7 @@ class SfSessionSchedulerSpec extends FlatSpec {
 }
 
 class StubWakeUpListener extends SfSessionSchedulListener {
+  private val logger = LoggerFactory.getLogger(StubWakeUpListener.super.getClass)
   var wakeUpCallCount = 0
   var sleepNowCallCount = 0
 
@@ -72,7 +75,7 @@ class StubWakeUpListener extends SfSessionSchedulListener {
     wakeUpCallCount += 1
   }
 
-  override def sleepNow: Unit = {
+  override def sleepNow(): Unit = {
     sleepNowCallCount += 1
   }
 }

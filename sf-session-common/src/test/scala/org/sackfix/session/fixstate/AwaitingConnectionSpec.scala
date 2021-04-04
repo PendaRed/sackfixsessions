@@ -1,12 +1,12 @@
 package org.sackfix.session.fixstate
 
 import org.sackfix.session._
-import org.scalatest.FlatSpec
+import org.scalatest.flatspec.AnyFlatSpec
 
 /**
   * Created by Jonathan during 2017.
   */
-class AwaitingConnectionSpec extends FlatSpec {
+class AwaitingConnectionSpec extends AnyFlatSpec {
 
   behavior of "AwaitingConnection"
   val session = new SfSessionStub
