@@ -1,11 +1,11 @@
 package org.sackfix.session
 
+import akka.actor.typed.scaladsl.adapter.TypedActorRefOps
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.{actor => classic}
-import akka.io.Tcp
 import akka.io.Tcp.{Event, Write}
 import akka.util.ByteString
+import akka.{actor => classic}
 import org.sackfix.codec.DecodingFailedData
 import org.sackfix.common.message.SfMessage
 import org.sackfix.common.validated.fields.SfFixMessageBody
@@ -84,13 +84,13 @@ object SfSessionActor {
   case class BusinessFixMsgOut(msgBody: SfFixMessageBody, correlationId: String) extends SfSessionActorCommand
 
   // Business layer can send this to close everything down
-  case class BusinessSaysLogoutNow(reason:String) extends SfSessionActorCommand
+  case class BusinessSaysLogoutNow(reason: String) extends SfSessionActorCommand
 
   /**
     * Sometimes when decoding we can determine the session, but then a field is badly formatted etc.
     * ie we cannot even create the well formed FixMsg, so we need to reject the message
     */
-  case class SendRejectMessageOut(refSeqNum: Int, reason: SessionRejectReasonField, explanation: TextField)  extends SfSessionActorCommand
+  case class SendRejectMessageOut(refSeqNum: Int, reason: SessionRejectReasonField, explanation: TextField) extends SfSessionActorCommand
 
   /**
     * A case class used by the Business actor when it sends a message out.  All part of
@@ -344,7 +344,7 @@ class SfSessionActor(context: ActorContext[SfSessionActorCommand],
       // The implicit sender should now pick up the self, and send me back the ack
       rtr.logOutgoingFixMsg(fixMsgStr)
       val ackEvent = SfSendFixMessageOutAck(correlationId)
-      rtr.tcpActor ! Write(ByteString(fixMsgStr), ackEvent)
+      rtr.tcpActor.tell(Write(ByteString(fixMsgStr), ackEvent), context.self.toClassic) // no typed equivalent for tcp and io.
     })
   }
 
@@ -398,17 +398,19 @@ class SfSessionActor(context: ActorContext[SfSessionActorCommand],
   private[session] def createHeartbeatHandlerMs(heartbeatIntervalMs: Long): SfSessionTimeHandler = {
     context.log.info(s"[${sessionId.id}] Starting heartbeat monitor with HeartBeatInterval = $heartbeatIntervalMs ms")
     val ret = new SfSessionTimeHandler(heartbeatIntervalMs,
-      new SessionTimeoutHandler {
-        def nothingSentFor(noHeartbeatsMissed: Int): Unit = {
-          context.log.info(s"[${sessionId.id}] nothing sent for HeartBeatInterval should send a Heartbeat")
-          context.self ! NothingSentFor(noHeartbeatsMissed)
+      new SessionTimeoutHandler() {
+        private val logger = LoggerFactory.getLogger(this.getClass)
+
+        def nothingSentFor(noHeartbeatsMissed: Int, sessActor: ActorRef[SfSessionActorCommand]): Unit = {
+          logger.info(s"[${sessionId.id}] nothing sent for HeartBeatInterval should send a Heartbeat")
+          sessActor ! NothingSentFor(noHeartbeatsMissed)
         }
 
-        def nothingReceivedFor(noHeartbeatsMissed: Int): Unit = {
-          context.log.info(s"[${sessionId.id}] nothing received for HeartBeatInterval+20% should send a TestReq")
-          context.self ! NothingReceivedFor(noHeartbeatsMissed)
+        def nothingReceivedFor(noHeartbeatsMissed: Int, sessActor: ActorRef[SfSessionActorCommand]): Unit = {
+          logger.info(s"[${sessionId.id}] nothing received for HeartBeatInterval+20% should send a TestReq")
+          sessActor ! NothingReceivedFor(noHeartbeatsMissed)
         }
-      }, SessionTimeoutHandler.DefaultTransmissionDelayMs)
+      }, context.self, SessionTimeoutHandler.DefaultTransmissionDelayMs)
     heartBeater ! AddListenerMsgIn(ret)
     ret
   }

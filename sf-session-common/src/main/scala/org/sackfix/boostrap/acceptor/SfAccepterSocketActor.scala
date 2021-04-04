@@ -24,6 +24,9 @@ import java.net.{InetAddress, InetSocketAddress}
   * http://doc.akka.io/docs/akka/current/scala/io-tcp.html
   *
   * Created by Jonathan in 2016.
+  *
+  * Note that in the typed to classic interop there is NO sender in scope to when sent
+  * to TCP actors (ie classic ones), do not use !, but use .tell(xx, context.self.toClassic)
   */
 object SfAccepterSocketActor {
   def apply(myHostName: Option[InetAddress], portNum: Int, sessionLookup: SfSessionLookup,
@@ -56,7 +59,6 @@ class SfAccepterSocketActor(context: ActorContext[Tcp.Event],
 
   if (myHostName.isEmpty) context.log.info(s"Configuration did not set ${SfAcceptorSettings.SOCKET_ACCEPT_ADDRESS}, so defaulting to local host")
   val host: InetAddress = if (myHostName.isDefined) myHostName.get else InetAddress.getLocalHost
-  var ioActorRef: Option[classic.ActorRef] = None
   var connection: Option[classic.ActorRef] = None
 
   override def onMessage(msg: Tcp.Event): Behavior[Tcp.Event] = {
@@ -68,7 +70,7 @@ class SfAccepterSocketActor(context: ActorContext[Tcp.Event],
         endSession()
         Behaviors.same
       case b@Bound(localAddress) =>
-        connection = ioActorRef
+        connection = Some(context.toClassic.sender())
         context.log.info(s"Successful bind to socket. host:[$host] port:[$portNum]")
         Behaviors.same
       case Unbound =>
@@ -83,10 +85,10 @@ class SfAccepterSocketActor(context: ActorContext[Tcp.Event],
       case c@Connected(remote, local) =>
         val debugHostName = remote.getHostName + ":" + remote.getPort
         context.log.info(s"Incoming connnection from [$debugHostName], registering a new Fix Message Handler")
-        val conn = ioActorRef.get
+        val conn =  context.toClassic.sender()
         val handler = context.spawn(SfSocketHandlerActor(SfAcceptor, conn, sessionLookup, debugHostName, businessComms, latencyRecorder),
           name = s"${debugHostName}SfSocketHandlerActor")
-        conn ! Register(handler.toClassic, keepOpenOnPeerClosed = true)
+        conn.tell(Register(handler.toClassic, keepOpenOnPeerClosed = true), context.self.toClassic)
         Behaviors.same
       case actorMsg@_ =>
         context.log.error(s"Match error: unexpected message received by Actor :${actorMsg.getClass.getName}")
@@ -98,8 +100,7 @@ class SfAccepterSocketActor(context: ActorContext[Tcp.Event],
     connection match {
       case None =>
         context.log.info(s"Opening socket to listen for clients. host:[$host] port:[$portNum]")
-        ioActorRef = Some(IO(Tcp)(context.system.classicSystem))
-        ioActorRef.get ! Bind(context.self.toClassic, new InetSocketAddress(host, portNum))
+        IO(Tcp)(context.system.classicSystem).tell(Bind(context.self.toClassic, new InetSocketAddress(host, portNum)),context.self.toClassic)
         sessionLookup.getAllSessionActors.foreach(sessionActor => {
           sessionActor ! AcceptorSocketWaitingMsgIn
         })
@@ -112,7 +113,7 @@ class SfAccepterSocketActor(context: ActorContext[Tcp.Event],
     connection match {
       case Some(c) =>
         context.log.info(s"Closing socket host:[$host] port:[$portNum]")
-        c ! Unbind
+        c.tell(Unbind, context.self.toClassic)
       case None =>
         context.log.info(s"EndSession event ignored, as acceptor socket is not open.")
     }

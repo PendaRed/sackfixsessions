@@ -18,6 +18,9 @@ import scala.concurrent.duration._
 /**
   * Initially cut and paste from http://doc.akka.io/docs/akka/current/scala/io-tcp.html
   * Created by Jonathan during 2016.
+  *
+  * Note that in the typed to classic interop there is NO sender in scope to when sent
+  * to TCP actors (ie classic ones), do not use !, but use .tell(xx, context.self.toClassic)
   */
 object SfInitiatorSocketActor {
   def apply(sessionLookup: SfSessionLookup,
@@ -65,7 +68,6 @@ class SfInitiatorSocketActor(context: ActorContext[Tcp.Event],
   }
 
   // Note tcp only exists in classic actors, there is no types equivalent
-  var ioActorRef : Option[classic.ActorRef] = None
   var handler: Option[ActorRef[Tcp.Event]] = None
   private var socketDescription = ""
   private var roundRobinSocketNumber = 0
@@ -90,8 +92,7 @@ class SfInitiatorSocketActor(context: ActorContext[Tcp.Event],
           case None => // simply impossible!
           case Some(socketDet) =>
             context.log.info(s"Attempting to connect to Fix Server at [$socketDescription]")
-            ioActorRef = Some(IO(Tcp)(context.system.classicSystem))
-            ioActorRef.get ! Connect(socketDet) // no typed equivalent for tcp and io.
+            IO(Tcp)(context.system.classicSystem).tell(Connect(socketDet),context.self.toClassic) // no typed equivalent for tcp and io.
         }
       case Some(c) =>
         context.log.info(s"startSession call ignored, already open")
@@ -119,7 +120,7 @@ class SfInitiatorSocketActor(context: ActorContext[Tcp.Event],
       case c@Connected(remote, local) =>
         val debugHostName = remote.getHostName + ":" + remote.getPort
         context.log.info(s"Outgoing connnection to [${debugHostName}] established")
-        val sender = ioActorRef.get
+        val sender = context.toClassic.sender()
         val handlerActor = context.spawn(SfSocketHandlerActor(SfInitiator, sender,
           sessionLookup, debugHostName, businessComms, latencyRecorder),
           name = s"$debugHostName-SfSocketHandlerActor")
@@ -127,7 +128,7 @@ class SfInitiatorSocketActor(context: ActorContext[Tcp.Event],
         // sign death pact: this Actor terminates when the connection breaks
         context.watch(handlerActor)
 
-        sender ! Register(handlerActor.toClassic)
+        sender.tell(Register(handlerActor.toClassic),context.self.toClassic)
         handler = Some(handlerActor)
 
         handlerActor ! InitiatorSocketOpenMsgIn(sessionId, sessionActor)

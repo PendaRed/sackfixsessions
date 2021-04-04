@@ -149,7 +149,7 @@ class SfSocketHandlerActor(context: ActorContext[Tcp.Event],
 
   def closeSocket = {
     context.log.info("Sending close to socket actor")
-    connection ! Close
+    connection.tell(Close,context.self.toClassic) // no typed equivalent for tcp and io.
   }
 
   private def recordLatencies(ts: DecoderTimestamps): Unit = {
