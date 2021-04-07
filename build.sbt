@@ -57,4 +57,8 @@ lazy val sfsessioncommon = (project in file("./sf-session-common")).
   )
 
 
-lazy val sackfixsessions = (project in file(".")).aggregate(sfsessioncommon)
+lazy val sackfixsessions = (project in file("."))
+  .aggregate(sfsessioncommon)
+  .settings(
+    publishArtifact := false
+  )

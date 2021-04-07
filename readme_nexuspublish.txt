@@ -44,9 +44,12 @@ releaseAllToNexus.bat
 
 cd ../sackfixsessions
 sbt
->project sackfixsessions
+>project sfsessioncommon
 >publishSigned
+>sonatypeRelease
 
+# Note the project is NOT the aggregate project, but the actual project, if you use the
+# aggregate then the release won't work, which is what I did first:
 # Refused to work >sonatypeRelease
 # So logged in to nexus, closed the staging repo (search for quickfix in staging), hit refresh, then hit release.
  
