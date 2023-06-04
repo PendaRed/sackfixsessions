@@ -1,4 +1,4 @@
-<a href="http://www.sackfix.org/"><img src ="http://www.sackfix.org/assets/sf_logo.png" /></a>
+<a href="https://pendared.github.io/sackfix/"><img src ="https://pendared.github.io/sackfix/assets/sf_logo.png" /></a>
 
 # SackFix
 
@@ -12,7 +12,7 @@ To get started simply download this project and start the acceptor and then the 
 * [Messages](https://github.com/PendaRed/sackfixmessages): Code generated Fix Messages for all versions of fix.
 * [Common](https://github.com/PendaRed/sackfix): The code generator and common classes - including all the code generated Fields.
 
-Full documentation is at [SackFix.org](http://www.sackfix.org/).
+Full documentation is at the [github pages](https://pendared.github.io/sackfix/).
 
 ## Versions
 
@@ -32,9 +32,9 @@ to look at it!  Download sackfixexamples, thats all you need.
 
 Upgraded in 2021 to akka typed and scala 2.13, see the sackfix project for version information.
 
-Please visit [sackfix.org](http://www.sackfix.org) for instructions on how to run the initiator and acceptor.
+Please visit the [github pages](http://https://pendared.github.io/sackfix/) for instructions on how to run the initiator and acceptor.
 
 Best wishes,
 Jonathan
 
-<a href="http://www.sackfix.org/"><img src ="http://www.sackfix.org/assets/sackfix.png" /></a>
+<a href="https://pendared.github.io/sackfix/"><img src ="https://pendared.github.io/sackfix/assets/sackfix.png" /></a>
